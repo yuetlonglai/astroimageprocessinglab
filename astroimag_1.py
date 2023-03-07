@@ -30,14 +30,29 @@ pix = np.linspace(3.3e3,3.6e3,1000)
 plt.plot(pix,gaussian(pix,*popt),'-',color='salmon')
 # plt.xlim(3.3e3,3.6e3)
 plt.show()
+average_background, average_background_err = popt[1], np.sqrt(pcov[1][1])
+print(average_background, average_background_err)
 
-# visualising the image
+# visualising the image in 3d
+# average_background = 3418.8155053212563 # from histogram gaussian fit
+# imag2 = imag
+# for i in range(len(imag2)):
+#     for j in range(len(imag2[0])):
+#         if j > 1e4:
+#             j = average_background
+# fig, ax = plt.subplots(subplot_kw={'projection':'3d'})
+# X, Y = np.meshgrid(np.array(range(len(imag2[0]))),np.array(range(len(imag2))))
+# ax.plot_surface(X,Y,imag2,cmap='plasma')
+# # fig.colorbar()
+# plt.show()
+
+# visualising the image 
 # plt.style.use(astropy_mpl_style)
 plt.figure(figsize=(12,8))
 plt.subplot(1,2,1)
 plt.imshow(imag,cmap='plasma',norm=colors.LogNorm())
 plt.subplot(1,2,2)
-plt.imshow(imag,cmap='Greys',norm=ImageNormalize(imag,interval=AsymmetricPercentileInterval(47,53,10),stretch=LinearStretch(5,-4)))
+plt.imshow(imag,cmap='Greys',norm=ImageNormalize(imag,interval=AsymmetricPercentileInterval(49,53,8),stretch=LinearStretch(2,-1)))
 plt.colorbar(label='Pixel Values')
 plt.show()
 
