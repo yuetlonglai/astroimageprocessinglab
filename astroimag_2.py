@@ -52,7 +52,7 @@ plt.figure(figsize=(12,8))
 plt.subplot(1,2,1)
 plt.imshow(imag,cmap='plasma',norm=colors.LogNorm())
 plt.subplot(1,2,2)
-plt.imshow(imag,cmap='Greys',norm=visualization.ImageNormalize(imag,interval=visualization.AsymmetricPercentileInterval(49,53,10),stretch=visualization.LinearStretch(2,-2)))
+plt.imshow(imag,cmap='Greys',norm=visualization.ImageNormalize(imag,interval=visualization.AsymmetricPercentileInterval(49,53,10),stretch=visualization.LinearStretch(5,-5)))
 plt.colorbar(label='Pixel Values')
 plt.show()
 
