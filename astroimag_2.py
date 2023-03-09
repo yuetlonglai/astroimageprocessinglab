@@ -81,4 +81,5 @@ plt.show()
 # plt.colorbar(label='Pixel Values')
 # plt.show()
 
-
+zpinstru = hdul[0].header['MAGZPT'], hdul[0].header['MAGZRR']
+print(zpinstru)

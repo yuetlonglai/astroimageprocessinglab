@@ -19,6 +19,7 @@ class Process:
         self.img = self.img[::-1]
         # background value from histogram gaussian fit
         self.average_background = 3418.8155053212563 
+        self.zpinst, self.zpinst_error = self.flux_calibration(imgpath)
         pass
 
     def open_img(self, path):
@@ -26,6 +27,11 @@ class Process:
         hdul = fits.open(path)
         imag = hdul[0].data
         return imag
+    
+    def flux_calibration(self, path):
+        hdul = fits.open(path)
+        ZP, ZP_error = hdul[0].header['MAGZPT'], hdul[0].header['MAGZRR']
+        return ZP, ZP_error
 
     def circle_lowpass(self, cutoff, tau):
         self.show_img(self.img)
@@ -79,7 +85,7 @@ class Process:
 
         return canv
     
-    def clean_bleeding(self, bleedlist,clean_background=True):
+    def clean_bleeding(self, bleedlist, clean_background = True):
         # remove stars that bleeds through the image -> irrelevant to analysis so remove
         # need a list of the coordinates of the stars that bleed in the image
         for i in bleedlist: 
@@ -88,16 +94,17 @@ class Process:
                 i,
                 self.average_background,
                 connectivity = 5,
-                tolerance = self.img[i[0]][i[1]]-self.average_background-1e3
+                tolerance = self.img[i[0]][i[1]]-self.average_background-0.5e3
                 )
-        # clean background? (optional)
+        # clean background? (optional) (pick False if don't wanna clean)
         if clean_background == True:
             self.img = segmentation.flood_fill(self.img,bleedlist[0],self.average_background,connectivity=5,tolerance=1e3)
+        return self
 
     def identify_objects(self):
         # apply threshold
-        thresh = filters.threshold_otsu(self.img)
-        bw = morphology.closing(self.img > thresh, morphology.square(3))
+        thresh = 4.5e3 #set threshold of the magnitude of objects
+        bw = morphology.closing(self.img > thresh, morphology.disk(6))
         # remove artifacts connected to image border
         cleared = segmentation.clear_border(bw)
         # label image regions
@@ -109,21 +116,24 @@ class Process:
             if region.area >= 1:
                 # draw rectangle around segmented coins
                 minr, minc, maxr, maxc = region.bbox
-                self.spotsx.append((minr+maxr)/2)
-                self.spotsy.append((minc+maxc)/2)
-        # plt.plot(self.spotsx,self.spotsy,'x',color='yellow',alpha=0.75)
-        return self.spotsx,self.spotsy
+                self.spotsx.append(int((minr+maxr)/2))
+                self.spotsy.append(int((minc+maxc)/2))
+        return self.spotsx, self.spotsy
     
     def aperture_photometry(self,radius=6):
         y, x = self.identify_objects()
-        fluxes = []
-        for i in range(len(x)):
+        self.fluxes = []
+        for i in range(len(x)): #scanning each detected object's total flux radially in both x and y directions 
             flux = 0
-            flux += self.img[x[i]][y[i]]
-            for j in range(1,radius):
-                flux += self.img[x[i]+j,y]
-                flux += self.img[x[i]-j,y]
-                
+            for k in range(-radius,radius+1): #vertical
+                for j in range(-(radius-abs(k)),radius-abs(k)): #horizontal
+                    flux += self.img[y[i]+k][x[i]+j]
+            self.fluxes.append(flux-self.average_background) #assume constant background contribution for now
+        # calibrating the fluxes using ZPinsturment values from header
+        self.fluxes = np.array(self.fluxes)
+        self.fluxes = self.zpinst - 2.5 * np.log10(self.fluxes) # value
+        self.fluxes_error = self.zpinst_error - 2.5 * np.log10(self.fluxes) #value error
+        return self.fluxes, self.fluxes_error
 
     def show_img(self, img = None):
         # plotting the image
@@ -147,11 +157,13 @@ image = Process('A1_mosaic.fits')
 
 # lp = img.circle_lowpass(700, 0.001)
 bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431),(4488,1531)]
-image.clean_bleeding(bleeding)
+image.clean_bleeding(bleeding,clean_background=False)
 # image.show_img()
 y,x = image.identify_objects()
+fluxlist = image.aperture_photometry()
+print(fluxlist)
 plt.figure(figsize=(10,8))
-plt.imshow(image.img,cmap='inferno',norm=colors.LogNorm())
+plt.imshow(image.img,cmap='plasma',norm=colors.LogNorm())
 plt.plot(x,y,'x',color='yellow',alpha=0.2)
 plt.show()
         
