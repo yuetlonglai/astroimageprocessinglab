@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 from astropy import visualization
 from matplotlib import colors
 from skimage import segmentation
-
+from skimage import filters
+from skimage import measure
+from skimage import morphology
 
 class Process:
 
@@ -77,7 +79,7 @@ class Process:
 
         return canv
     
-    def clean_bleeding(self, bleedlist):
+    def clean_bleeding(self, bleedlist,clean_background=True):
         # remove stars that bleeds through the image -> irrelevant to analysis so remove
         # need a list of the coordinates of the stars that bleed in the image
         for i in bleedlist: 
@@ -88,12 +90,45 @@ class Process:
                 connectivity = 5,
                 tolerance = self.img[i[0]][i[1]]-self.average_background-1e3
                 )
+        # clean background? (optional)
+        if clean_background == True:
+            self.img = segmentation.flood_fill(self.img,bleedlist[0],self.average_background,connectivity=5,tolerance=1e3)
+
+    def identify_objects(self):
+        # apply threshold
+        thresh = filters.threshold_otsu(self.img)
+        bw = morphology.closing(self.img > thresh, morphology.square(3))
+        # remove artifacts connected to image border
+        cleared = segmentation.clear_border(bw)
+        # label image regions
+        label_image = measure.label(cleared)
+        self.spotsx = []
+        self.spotsy = []
+        for region in measure.regionprops(label_image):
+            # take regions with large enough areas
+            if region.area >= 1:
+                # draw rectangle around segmented coins
+                minr, minc, maxr, maxc = region.bbox
+                self.spotsx.append((minr+maxr)/2)
+                self.spotsy.append((minc+maxc)/2)
+        # plt.plot(self.spotsx,self.spotsy,'x',color='yellow',alpha=0.75)
+        return self.spotsx,self.spotsy
+    
+    def aperture_photometry(self,radius=6):
+        y, x = self.identify_objects()
+        fluxes = []
+        for i in range(len(x)):
+            flux = 0
+            flux += self.img[x[i]][y[i]]
+            for j in range(1,radius):
+                flux += self.img[x[i]+j,y]
+                flux += self.img[x[i]-j,y]
+                
 
     def show_img(self, img = None):
         # plotting the image
         if img is None:
             img = self.img
-        
         normalise = visualization.ImageNormalize(
             img,
             interval=visualization.AsymmetricPercentileInterval(47,53,6),
@@ -111,8 +146,12 @@ class Process:
 image = Process('A1_mosaic.fits')
 
 # lp = img.circle_lowpass(700, 0.001)
-bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431)]
+bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431),(4488,1531)]
 image.clean_bleeding(bleeding)
-image.show_img()
-
+# image.show_img()
+y,x = image.identify_objects()
+plt.figure(figsize=(10,8))
+plt.imshow(image.img,cmap='inferno',norm=colors.LogNorm())
+plt.plot(x,y,'x',color='yellow',alpha=0.2)
+plt.show()
         
