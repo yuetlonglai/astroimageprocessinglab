@@ -1,12 +1,11 @@
 import numpy as np
-import scipy as sp
+import pandas as pd
 from numpy import fft
 from astropy.io import fits
 import matplotlib.pyplot as plt
 from astropy import visualization
 from matplotlib import colors
 from skimage import segmentation
-from skimage import filters
 from skimage import measure
 from skimage import morphology
 
@@ -134,6 +133,24 @@ class Process:
         self.fluxes = self.zpinst - 2.5 * np.log10(self.fluxes) # value
         self.fluxes_error = self.zpinst_error - 2.5 * np.log10(self.fluxes) #value error
         return self.fluxes, self.fluxes_error
+    
+    def catalogue(self):
+        y, x = self.identify_objects()
+        z, zerr = self.aperture_photometry()
+        self.table = pd.DataFrame([],columns=['position-x','position-y','magnitude','magnitude-error'])
+        self.table['position-x'] = x
+        self.table['position-y'] = y
+        self.table['magnitude'] = z
+        self.table['magnitude-error'] = zerr
+        return self.table
+    
+    def number_count(self):
+        cat = self.catalogue()
+        m = np.linspace(min(cat['magnitude']),11.8,100)
+        N = []
+        for i in m:
+            N.append(np.count_nonzero(np.where(cat['magnitude'] < i, True, False)))
+        return m, N
 
     def show_img(self, img = None):
         # plotting the image
@@ -161,9 +178,21 @@ image.clean_bleeding(bleeding,clean_background=False)
 # image.show_img()
 y,x = image.identify_objects()
 fluxlist = image.aperture_photometry()
-print(fluxlist)
+# print(fluxlist)
 plt.figure(figsize=(10,8))
-plt.imshow(image.img,cmap='plasma',norm=colors.LogNorm())
+plt.imshow(image.img,cmap='inferno',norm=colors.LogNorm())
 plt.plot(x,y,'x',color='yellow',alpha=0.2)
+plt.show()
+
+counting = image.number_count()
+fit,cov = np.polyfit(counting[0][1:],np.log10(counting[1][1:]),1,cov=True)
+logN = np.poly1d(fit)
+print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
+plt.figure()
+plt.xlabel('magnitude')
+plt.ylabel(r'$log(N(m))$')
+plt.plot(counting[0],np.log10(counting[1]),'x',color='blue',label='Data')
+plt.plot(counting[0],logN(counting[0]),'-',color='red',label='Fitted')
+plt.legend(loc='best')
 plt.show()
         
