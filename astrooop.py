@@ -32,6 +32,12 @@ class Process:
         hdul = fits.open(path)
         ZP, ZP_error = hdul[0].header['MAGZPT'], hdul[0].header['MAGZRR']
         return ZP, ZP_error
+    
+    def mask_edge(self, cut):
+        cutimg = self.img[cut:-cut, cut:-cut]
+        img2 = np.pad(cutimg, ((cut,cut),(cut,cut)), mode='constant', constant_values = (self.average_background))
+        # self.show_img()
+        return img2
 
     def circle_lowpass(self, cutoff, tau):
         self.show_img(self.img)
@@ -103,8 +109,10 @@ class Process:
 
     def identify_objects(self):
         # apply threshold
-        thresh = 4.5e3 #set threshold of the magnitude of objects
-        bw = morphology.closing(self.img > thresh, morphology.disk(6))
+        # thresh = 3.5e3 # set threshold of the magnitude of objects
+        thresh = self.average_background + 2 * self.background_sigma
+        image_no_edge = self.mask_edge(125)
+        bw = morphology.closing(image_no_edge > thresh, morphology.disk(6))
         # remove artifacts connected to image border
         cleared = segmentation.clear_border(bw)
         # label image regions
@@ -118,6 +126,7 @@ class Process:
                 minr, minc, maxr, maxc = region.bbox
                 self.spotsx.append(int((minr+maxr)/2))
                 self.spotsy.append(int((minc+maxc)/2))
+        print('Number of Object Detected : ' + str(len(self.spotsx)))
         return self.spotsx, self.spotsy
     
     def aperture_photometry(self,radius=6):
@@ -175,11 +184,11 @@ class Process:
 # 1) improve object detection - right now we detect most of it but not all of it
 # 2) find the local background and use that to find flux instead of global background
 # 3) errorbars
+# 4) clean background
 
 
-
+# using the class
 image = Process('A1_mosaic.fits')
-
 # lp = img.circle_lowpass(700, 0.001)
 bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431),(4488,1531)]
 image.clean_bleeding(bleeding,clean_background=False)
@@ -188,12 +197,18 @@ y,x = image.identify_objects()
 fluxlist = image.aperture_photometry()
 # print(fluxlist)
 plt.figure(figsize=(10,8))
+plt.subplot(1,2,1)
 plt.imshow(image.img,cmap='inferno',norm=colors.LogNorm())
-plt.plot(x,y,'x',color='yellow',alpha=0.2)
+plt.plot(x,y,'x',color='yellow',alpha=0.5)
+plt.subplot(1,2,2)
+normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(49,53,11),stretch=visualization.LinearStretch(2,-1))
+plt.imshow(image.img,cmap='Greys',norm=normalise)
+plt.plot(x,y,'x',color='yellow',alpha=0.5)
 plt.show()
 
+# Number of Count Plot
 counting = image.number_count()
-print(counting[2],counting[3])
+# print(counting[2],counting[3])
 fit,cov = np.polyfit(counting[0][1:],np.log10(counting[1][1:]),1,cov=True)
 logN = np.poly1d(fit)
 print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
@@ -203,9 +218,6 @@ plt.xlabel(r'$m$')
 plt.ylabel(r'$log(N(m))$')
 plt.errorbar(x=counting[0],y=np.log10(counting[1]),yerr=(np.log10(counting[2]),np.log10(counting[3])),fmt='.',capsize=2,color='blue',label='Data')
 plt.plot(counting[0],logN(counting[0]),'-',color='red',label='Fitted')
-# plt.plot(counting[0],expected-min(expected)+min(np.log10(counting[1])),'--',color='black')
-# plt.plot(counting[0],expected-max(expected)+max(np.log10(counting[1])),'--',color='black')
-# plt.fill_between(counting[0],expected-max(expected)+max(np.log10(counting[1])),expected-min(expected)+min(np.log10(counting[1])),color='grey',alpha=0.5)
 plt.legend(loc='best')
 plt.show()
         

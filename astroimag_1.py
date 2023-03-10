@@ -31,7 +31,8 @@ plt.plot(pix,gaussian(pix,*popt),'-',color='salmon')
 # plt.xlim(3.3e3,3.6e3)
 plt.show()
 average_background, average_background_err = popt[1], np.sqrt(pcov[1][1])
-print(average_background, average_background_err)
+background_sigma = popt[2]
+print(average_background, average_background_err, background_sigma)
 
 # visualising the image in 3d
 # average_background = 3418.8155053212563 # from histogram gaussian fit
