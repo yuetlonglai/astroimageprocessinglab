@@ -18,6 +18,7 @@ class Process:
         self.img = self.img[::-1]
         # background value from histogram gaussian fit
         self.average_background = 3418.8155053212563 
+        self.background_sigma = 17.477502359953714
         self.zpinst, self.zpinst_error = self.flux_calibration(imgpath)
         pass
 
@@ -146,11 +147,15 @@ class Process:
     
     def number_count(self):
         cat = self.catalogue()
-        m = np.linspace(min(cat['magnitude']),11.8,100)
+        m = np.linspace(9.8,11.8,25)
         N = []
+        Nerr_l = []
+        Nerr_u = []
         for i in m:
             N.append(np.count_nonzero(np.where(cat['magnitude'] < i, True, False)))
-        return m, N
+            Nerr_l.append(np.count_nonzero(np.where(cat['magnitude']-abs(cat['magnitude-error']) < i, True, False)))
+            Nerr_u.append(np.count_nonzero(np.where(cat['magnitude']+abs(cat['magnitude-error']) < i, True, False)))
+        return m, N, abs(np.array(N)-np.array(Nerr_l)), abs(np.array(Nerr_u)-np.array(N))
 
     def show_img(self, img = None):
         # plotting the image
@@ -166,7 +171,10 @@ class Process:
         ax[1].imshow(img,cmap='Greys',norm=normalise)
         plt.show()
         
-
+# to do list: 
+# 1) improve object detection - right now we detect most of it but not all of it
+# 2) find the local background and use that to find flux instead of global background
+# 3) errorbars
 
 
 
@@ -185,14 +193,19 @@ plt.plot(x,y,'x',color='yellow',alpha=0.2)
 plt.show()
 
 counting = image.number_count()
+print(counting[2],counting[3])
 fit,cov = np.polyfit(counting[0][1:],np.log10(counting[1][1:]),1,cov=True)
 logN = np.poly1d(fit)
 print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
+expected = 0.6*counting[0]
 plt.figure()
-plt.xlabel('magnitude')
+plt.xlabel(r'$m$')
 plt.ylabel(r'$log(N(m))$')
-plt.plot(counting[0],np.log10(counting[1]),'x',color='blue',label='Data')
+plt.errorbar(x=counting[0],y=np.log10(counting[1]),yerr=(np.log10(counting[2]),np.log10(counting[3])),fmt='.',capsize=2,color='blue',label='Data')
 plt.plot(counting[0],logN(counting[0]),'-',color='red',label='Fitted')
+# plt.plot(counting[0],expected-min(expected)+min(np.log10(counting[1])),'--',color='black')
+# plt.plot(counting[0],expected-max(expected)+max(np.log10(counting[1])),'--',color='black')
+# plt.fill_between(counting[0],expected-max(expected)+max(np.log10(counting[1])),expected-min(expected)+min(np.log10(counting[1])),color='grey',alpha=0.5)
 plt.legend(loc='best')
 plt.show()
         
