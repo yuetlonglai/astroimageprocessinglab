@@ -48,11 +48,11 @@ plt.imshow(imag,cmap='plasma', norm = colors.LogNorm())
 plt.subplot(1,2,2)
 plt.title('After')
 for i in bleeding:
-    imag = segmentation.flood_fill(imag,i,average_background,connectivity=5,tolerance=imag[i[0]][i[1]]-average_background-1e3)
-imag = segmentation.flood_fill(imag,bleeding[0],average_background,connectivity=5,tolerance=1e3)
+    imag = segmentation.flood_fill(imag,i,average_background,connectivity=5,tolerance=imag[i[0]][i[1]]-average_background-0.5e3)
+# imag = segmentation.flood_fill(imag,bleeding[0],average_background,connectivity=5,tolerance=1e3)
 # apply threshold
-thresh = filters.threshold_otsu(imag)
-bw = morphology.closing(imag > thresh, morphology.square(3))
+thresh = 3.5e3
+bw = morphology.closing(imag > thresh, morphology.square(5))
 # remove artifacts connected to image border
 cleared = segmentation.clear_border(bw)
 # label image regions
@@ -68,9 +68,10 @@ for region in measure.regionprops(label_image):
         spotsy.append((minc+maxc)/2)
         # rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='red', linewidth=2)
         # ax.add_patch(rect)
-
-plt.imshow(imag,cmap='plasma', norm = colors.LogNorm())
-plt.plot(spotsy,spotsx,'x',color='yellow',alpha=0.3)
+print(len(spotsx))
+normalise = visualization.ImageNormalize(imag,interval=visualization.AsymmetricPercentileInterval(49,53,11),stretch=visualization.LinearStretch(2,-1))
+plt.imshow(imag,cmap='Greys', norm = normalise)
+plt.plot(spotsy,spotsx,'x',color='yellow',alpha=0.5)
 plt.show()
 
 # plt.figure(figsize=(12,8))
@@ -81,5 +82,5 @@ plt.show()
 # plt.colorbar(label='Pixel Values')
 # plt.show()
 
-zpinstru = hdul[0].header['MAGZPT'], hdul[0].header['MAGZRR']
-print(zpinstru)
+# zpinstru = hdul[0].header['MAGZPT'], hdul[0].header['MAGZRR']
+# print(zpinstru)
