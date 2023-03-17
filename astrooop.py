@@ -98,11 +98,11 @@ class Process:
             # self.img = np.where(self.img < 100, 0, self.img)
         return self
 
-    def identify_objects(self,edge=150,boxedge=False): # important method because it dictates the quality of the results
+    def identify_objects(self,boxedge=False): # important method because it dictates the quality of the results
         # set threshold of the magnitude of objects
-        # thresh = 5e3
+        # thresh = 3.6e3
         thresh = self.average_background + 2 * self.background_sigma
-        image_no_edge = self.mask_edge(edge)
+        image_no_edge = self.mask_edge(150)
         bw = morphology.closing(image_no_edge > thresh, morphology.disk(1))
         # remove artifacts connected to image border
         cleared = segmentation.clear_border(bw)
@@ -112,6 +112,7 @@ class Process:
         spotsy = []
         edgex = []
         edgey = []
+        boxflux = []
         for region in measure.regionprops(label_image):
             # take regions with large enough areas
             if region.area >= np.pi*2**2:
@@ -124,14 +125,19 @@ class Process:
                     spotsx.append(x)
                     edgey.append((minr, minr, maxr, maxr, minr))
                     edgex.append((minc, maxc, maxc, minc, minc))
+                    # aperture photometry:
+                    section = []
+                    for i in self.img[minr:maxr]:
+                        section.append(i[minc:maxc])
+                    boxflux.append(sum([self.zpinst-2.5*np.log10(a-self.average_background) for a in np.array(section).flatten() if a > thresh]))
         print('Number of Object Detected : ' + str(len(spotsx)))
         if boxedge == False:
-            return spotsy, spotsx
+            return spotsy, spotsx, boxflux
         else:
             return spotsy, spotsx, edgey, edgex
     
     def aperture_photometry(self,radius=6):
-        y, x = self.identify_objects()
+        y, x, z= self.identify_objects()
         self.fluxes = []
         for i in range(len(x)): # scanning each detected object's total flux radially in both x and y directions 
             flux = 0
@@ -146,13 +152,13 @@ class Process:
         return self.fluxes, self.fluxes_error
     
     def catalogue(self):
-        y, x = self.identify_objects()
-        z, zerr = self.aperture_photometry()
+        y, x, z = self.identify_objects()
+        # z, zerr = self.aperture_photometry()
         self.table = pd.DataFrame([],columns=['position-x','position-y','magnitude','magnitude-error'])
         self.table['position-x'] = x
         self.table['position-y'] = y
         self.table['magnitude'] = z
-        self.table['magnitude-error'] = zerr
+        # self.table['magnitude-error'] = zerr
         return self.table
     
     def number_count(self, plotting=False):
@@ -174,8 +180,8 @@ class Process:
             plt.xlabel(r'$m$')
             plt.ylabel(r'$log(N(m))$')
             # plt.errorbar(x=counting[0],y=np.log10(counting[1]),yerr=(np.log10(counting[2]),np.log10(counting[3])),fmt='.',capsize=2,color='blue',label='Data')
-            plt.errorbar(x=m,y=np.log10(N),fmt='.',color='blue',label='Data')
-            plt.plot(m,logN(m),'-',color='red',label='Fitted')
+            plt.errorbar(x=m[1:],y=np.log10(N[1:]),fmt='.',color='blue',label='Data')
+            plt.plot(m[1:],logN(m[1:]),'-',color='red',label='Fitted')
             plt.legend(loc='best')
             plt.show()
         return m, N#, abs(np.array(N)-np.array(Nerr_l)), abs(np.array(Nerr_u)-np.array(N))
@@ -217,6 +223,7 @@ y,x,by,bx = image.identify_objects(boxedge=True)
 plt.figure(figsize=(10,8))
 normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
 plt.imshow(image.img,cmap='Greys',norm=normalise)
+# plt.imshow(image.img,cmap='inferno',norm=colors.LogNorm())
 plt.plot(x,y,'.',color='red',alpha=0.5)
 for i in range(len(bx)):
     plt.plot(bx[i],by[i],'-',color='blue',linewidth=1)
