@@ -54,7 +54,7 @@ class Process2:
                 )
         return self
     
-    def identify_objects(self,catalogue=False,aperture_vary=True):
+    def identify_objects(self,catalogue=False,aperture_vary=True): # use photoutils aperture, photometry, background, detection
         # remove background
         self.bkg = background.Background2D(self.img,(50,50),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
         self.img = self.img - self.bkg.background
@@ -66,8 +66,9 @@ class Process2:
         sources = daofind(self.img, mask=mask)
         sourcesx = sources['xcentroid']
         sourcesy = sources['ycentroid']
-        sources_radius = 5.0 * np.log10(sources['peak']) - 5.0 # model the relationship between brightness and its radius approx => works
+        sources_radius = 5.0 * np.log10(sources['peak']) - 5.0 # approximate the relationship between brightness and its radius => works
         positions = np.column_stack([sourcesx,sourcesy])
+        ellipticity = sources['roundness1']
         # aperture photometry
         if aperture_vary == False:
             # with fixed aperture(s)
@@ -79,8 +80,9 @@ class Process2:
             varying_phot = []
             self.apertures = []
             for i in range(len(positions)):
-                individual_apertures = aperture.CircularAperture(positions[i],r=sources_radius[i])
-                photo = aperture.aperture_photometry(self.img,individual_apertures)
+                # individual_apertures = aperture.CircularAperture(positions[i],r=sources_radius[i])
+                individual_apertures = aperture.EllipticalAperture(positions[i],a=sources_radius[i]*(1+abs(ellipticity[i])/2),b=sources_radius[i]*(1-abs(ellipticity[i])/2),theta=np.arctan(ellipticity[i]))
+                photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
                 varying_phot.append(photo['aperture_sum'])
                 self.apertures.append(individual_apertures)
         # return method
@@ -99,7 +101,7 @@ class Process2:
                 catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot))
             return catalogue_table
         
-    def number_count(self, plotting=False,num = 0):
+    def number_count(self, plotting=False,num=''):
         cat = self.identify_objects(catalogue=True)
         aperture_num = num
         magnitude_radius = cat['magnitude_'+str(aperture_num)]
@@ -148,4 +150,4 @@ plt.colorbar()
 plt.show()
 
 # cumulative number count plot
-image.number_count(plotting=True,num='')
+image.number_count(plotting=True)
