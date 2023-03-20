@@ -14,6 +14,7 @@ from tqdm import tqdm
 import PIL
 from glob import glob
 import pickle
+from scipy.interpolate import RegularGridInterpolator
 
 
 class Process:
@@ -214,22 +215,34 @@ class Process_fake(Process):
         cls, size = [100,100], noise_params = {'octaves': 5, 'seed': 1, 'scale': 10, 'shift': 10}, 
         objparams = {'numgal': 10, 'numstar': 10, 'galamp': 4000, 'staramp': 4000, 'galwidth': 20, 'starwidth': 10}) -> None:
 
-        pickles = glob('*backpickle*')
-        print(pickles)
-        check = [str(noise_params['seed']) not in (i) or (str(size[0]) + '_' + str(size[1])) not in (i) for i in pickles]
-        print(check)
-        if all(check):
-            noise = PerlinNoise(octaves = noise_params['octaves'], seed = noise_params['seed'])
-            pic = np.zeros(size)
-            for i in tqdm(range(size[0])):
-                for j in range(size[1]):
-                    pic[i,j] = (noise([i/size[0], j/size[1]]))*noise_params['scale'] + noise_params['shift']
-            with open('{}_{}_backpickle_{}.pkl'.format(size[0],size[1],noise_params['seed']), 'wb') as f:
-                pickle.dump(pic,f)
+
+        noisegrid = np.random.rand(noise_params['octaves'],noise_params['octaves'])*noise_params['scale'] + noise_params['shift']
+        nx = np.linspace(0,noise_params['octaves'], noise_params['octaves'])
+        ny = np.linspace(0,noise_params['octaves'], noise_params['octaves'])
+        ninter = RegularGridInterpolator((nx,ny),noisegrid)
+        x = np.linspace(0,noise_params['octaves'],size[0])
+        y = np.linspace(0,noise_params['octaves'],size[1])
+
+        X, Y = np.meshgrid(x, y, indexing='ij')
+        print()
+        pic = ninter((X,Y))
+
+        # pickles = glob('*backpickle*')
+        # print(pickles)
+        # check = [str(noise_params['seed']) not in (i) or (str(size[0]) + '_' + str(size[1])) not in (i) for i in pickles]
+        # print(check)
+        # if all(check):
+        #     noise = PerlinNoise(octaves = noise_params['octaves'], seed = noise_params['seed'])
+        #     pic = np.zeros(size)
+        #     for i in tqdm(range(size[0])):
+        #         for j in range(size[1]):
+        #             pic[i,j] = (noise([i/size[0], j/size[1]]))*noise_params['scale'] + noise_params['shift']
+        #     with open('{}_{}_backpickle_{}.pkl'.format(size[0],size[1],noise_params['seed']), 'wb') as f:
+        #         pickle.dump(pic,f)
         
-        else:
-            with open('{}_{}_backpickle_{}.pkl'.format(size[0],size[1],noise_params['seed']), 'rb') as f:
-                pic = pickle.load(f)
+        # else:
+        #     with open('{}_{}_backpickle_{}.pkl'.format(size[0],size[1],noise_params['seed']), 'rb') as f:
+        #         pic = pickle.load(f)
             
 
         
@@ -258,14 +271,30 @@ class Process_fake(Process):
 
         
 
-        xx, yy = np.meshgrid(y,x)
+        
 
         for i, (x0,y0,xsig,ysig,a) in tqdm(enumerate(zip(xpoints,ypoints,xwidths,ywidths,amps))):
             angle = np.random.randint(0,360,1)
-            gaus = np.array(self.gaussian2d(xx,yy,x0,y0,xsig,ysig,a))
-            gimg = PIL.Image.fromarray(gaus)
-            gimg = gimg.rotate(angle, center = [x0,y0])
-            self.img += np.array(gimg)
+            gaus = np.zeros((x.size,y.size), dtype=float)
+
+            maxsig = max([xsig,ysig])
+
+            xmask = (x < x0 + 4*maxsig) & (x > x0 - 4*maxsig)
+            ymask = (y0 - 4*maxsig < y) & (y < y0 + 4*maxsig)
+
+            xm = x[xmask]
+            ym = y[ymask]
+
+            if ym.size == xm.size: 
+                xx, yy = np.meshgrid(xm,ym)
+                gaus[xmask][:,ymask] += self.gaussian2d(xx,yy,x0,y0,xsig,ysig,a)
+                print(np.amax(gaus))
+            # print(x.size - gaus.shape[0])
+                # gaus = np.pad(gaus, (x.size - gaus.shape[0], y.size - gaus.shape[1]))
+
+                gimg = PIL.Image.fromarray(gaus)
+                gimg = gimg.rotate(angle, center = [x0,y0])
+                self.img += np.array(gimg)
 
         return {'coords': zip(xpoints,ypoints), 'widths': zip(xwidths,ywidths), 'amps': amps}
 
@@ -281,10 +310,21 @@ class Process_fake(Process):
         y = np.arange(0,len(self.img[1]),1, dtype=int)
 
 
-        xx, yy = np.meshgrid(x,y)
-
         for i, (x0,y0,sig,a) in tqdm(enumerate(zip(xpoints,ypoints,widths,amps))):
-            self.img += self.gaussian2d(xx,yy,x0,y0,sig,sig,a)
+
+            gaus = np.zeros((x.size,y.size), dtype=float)
+
+
+            xmask = (x < x0 + 4*sig) & (x > x0 - 4*sig)
+            ymask = (y0 - 4*sig < y) & (y < y0 + 4*sig)
+
+            xm = x[xmask]
+            ym = y[ymask]
+
+            xx, yy = np.meshgrid(xm,ym)
+            gaus[xmask][:,ymask] += self.gaussian2d(xx,yy,x0,y0,sig,sig,a)
+
+            self.img += gaus
 
         return {'coords': zip(xpoints,ypoints), 'widths': zip(widths,widths), 'amps': amps}
         
@@ -298,8 +338,8 @@ class Process_fake(Process):
 # 2) find the local background and use that to find flux instead of global background
 # 3) errorbars
 
-testobjs = {'numgal': 1000, 'numstar': 1000, 'galamp': 1000, 'staramp': 2000, 'galwidth': 10, 'galskew': 2, 'starwidth': 5}
-test = Process_fake(size = [3432,3432], noise_params={'octaves': 3, 'seed': 2, 'scale': 17, 'shift': 3418.8155053212563}, objparams=testobjs)
+testobjs = {'numgal': 100, 'numstar': 100, 'galamp': 1000, 'staramp': 2000, 'galwidth': 10, 'galskew': 2, 'starwidth': 5}
+test = Process_fake(size = [3000,3000], noise_params={'octaves': 3, 'seed': 2, 'scale': 17, 'shift': 3418.8155053212563}, objparams=testobjs)
 
 #using the class
 # image = Process('A1_mosaic.fits')
