@@ -10,6 +10,7 @@ from skimage import segmentation
 from photutils import detection
 from photutils import background
 from photutils import aperture
+from lmfit import Model
 
 class Process2:
     def __init__(self, imgpath) -> None:
@@ -54,7 +55,7 @@ class Process2:
                 )
         return self
     
-    def identify_objects(self,catalogue=False,aperture_vary=True): # use photoutils aperture, photometry, background, detection
+    def identify_objects(self,catalogue=False,aperture_vary=True,sersic=False): # use photoutils aperture, photometry, background, detection
         # remove background
         self.bkg = background.Background2D(self.img,(50,50),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
         self.img = self.img - self.bkg.background
@@ -85,6 +86,42 @@ class Process2:
                 photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
                 varying_phot.append(photo['aperture_sum'])
                 self.apertures.append(individual_apertures)
+        # sersic profile and return
+        if sersic == True:
+            nvalues = []
+            galaxies_x = []
+            galaxies_y = []
+            varying_phot_sersic = []
+            for i in range(len(positions)):
+                radial = np.linspace(0.001,sources_radius[i],20)
+                annulal_flux = []
+                for j in range(len(radial)-1):
+                    individual_annulus = aperture.EllipticalAnnulus(
+                        positions[i],
+                        a_in = radial[j]*(1+abs(ellipticity[i])/2),
+                        a_out = radial[j+1]*(1+abs(ellipticity[i])/2),
+                        b_in = radial[j]*(1-abs(ellipticity[i])/2),
+                        b_out = radial[j+1]*(1-abs(ellipticity[i])/2)
+                    )
+                    flux = aperture.aperture_photometry(self.img,individual_annulus,method='subpixel')
+                    annulal_flux.append(flux['aperture_sum'])
+                sersic_model = Model(self.log_sersic)
+                model_results = sersic_model.fit(annulal_flux,r=radial,I0=sources['peak'][i],k=1,n=1)
+                if model_results.params['n'] > 0.5 and model_results.params['n'] < 10:
+                    nvalues.append(model_results.params['n'])
+                    galaxies_x.append(positions[i][0])
+                    galaxies_y.append(positions[i][1])
+                    individual_apertures = aperture.EllipticalAperture(positions[i],a=sources_radius[i]*(1+abs(ellipticity[i])/2),b=sources_radius[i]*(1-abs(ellipticity[i])/2),theta=np.arctan(ellipticity[i]))
+                    photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
+                    varying_phot_sersic.append(photo['aperture_sum'])
+            if catalogue == False:
+                return galaxies_y, galaxies_x
+            else:
+                catalogue_table = pd.DataFrame(columns=['x-centroid','y-centroid'])
+                catalogue_table['x-centroid'] = galaxies_x
+                catalogue_table['y-centroid'] = galaxies_y
+                catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot_sersic))
+                return catalogue_table
         # return method
         if catalogue == False:
             print('Number of Object Detected : ' + str(len(sources)))
@@ -93,6 +130,7 @@ class Process2:
             catalogue_table = pd.DataFrame(columns=['x-centroid','y-centroid'])
             catalogue_table['x-centroid'] = sourcesx
             catalogue_table['y-centroid'] = sourcesy
+            catalogue_table['peaks'] = sources['peak']
             if aperture_vary == False:
                 catalogue_table['magnitude_0'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_0'])
                 catalogue_table['magnitude_1'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_1'])
@@ -101,11 +139,14 @@ class Process2:
                 catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot))
             return catalogue_table
         
-    def number_count(self, plotting=False,num=''):
-        cat = self.identify_objects(catalogue=True)
+    def number_count(self, plotting=False,num='',ser=False):
+        if ser == False:
+            cat = self.identify_objects(catalogue=True)
+        else:
+            cat = self.identify_objects(catalogue=True,sersic=True)
         aperture_num = num
         magnitude_radius = cat['magnitude_'+str(aperture_num)]
-        m = np.linspace(9.8,18,50)
+        m = np.linspace(min(magnitude_radius),max(magnitude_radius),50)
         N = []
         Nerr= []
         for i in m:
@@ -118,7 +159,7 @@ class Process2:
         logNerr = (1/N * N**0.5)*logN
         if plotting == True:
             print(N)
-            fit,cov = np.polyfit(m,logN,1,w=1/logNerr,cov=True)
+            fit,cov = np.polyfit(m[:-15],logN[:-15],1,w=1/logNerr[:-15],cov=True)
             plogN = np.poly1d(fit)
             print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
             plt.figure()
@@ -129,7 +170,10 @@ class Process2:
             plt.legend(loc='best')
             plt.show()
         return m, N#, abs(np.array(N)-np.array(Nerr_l)), abs(np.array(Nerr_u)-np.array(N))
-        
+    
+    def log_sersic(self,r,I0,k,n):
+        return np.log(I0) - k*r**(1/n)
+    
 
 # using the class
 image = Process2('A1_mosaic.fits')
@@ -151,3 +195,4 @@ plt.show()
 
 # cumulative number count plot
 image.number_count(plotting=True)
+# image.number_count(plotting=True,ser=True)
