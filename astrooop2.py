@@ -11,6 +11,7 @@ from photutils import detection
 from photutils import background
 from photutils import aperture
 from scipy import optimize
+from scipy.interpolate import RegularGridInterpolator
 
 class Process2:
     def __init__(self, imgpath) -> None:
@@ -178,32 +179,60 @@ class Process2:
     def log_sersic(self,r,I0,k,n):
         return np.log(I0) - k*r**(1/n)
     
+    def objwindow(self, x, y, coords, rng, wscale, wdim):
+        xmask = (coords[0] - wscale* rng < x) & (x < coords[0] +  wscale* rng)
+        ymask = (coords[1] - wscale * rng < y) & (y < coords[1] + wscale * rng)
 
-# using the class
-image = Process2('A1_mosaic.fits')
-# clean bleeding
-bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431),(4488,1531),(4183,1036),(4275,1642)]
-image.clean_bleeding(bleeding)
-# identify objects
-y,x = image.identify_objects()
-# plot
-plt.figure(figsize=(10,8))
-normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
-plt.imshow(image.img,cmap='Greys',norm=normalise)
-# plt.imshow(image.original,cmap='inferno',norm=colors.LogNorm())
-plt.plot(x,y,'.',color='red',alpha=0.5)
-for i in range(len(image.apertures)):
-    image.apertures[i].plot(color='blue', lw=1.5, alpha=0.5)
-plt.colorbar()
-plt.show()
 
-# cumulative number count plot
-m,N=image.number_count(plotting=False)
-# m1,N1=image.number_count(plotting=False,ser=True)
-plt.figure()
-plt.plot(m,np.log(N),'.',color='blue',label='All objects')
-# plt.plot(m1,np.log(N1),'.',color='blueviolet',label='Galaxies')
-plt.legend()
-plt.show()
-# print('Galaxy = ' +str(N1[-1]))
-# print('Not Galaxy = ' +str(N[-1]-N1[-1]))
+        window = self.img[xmask][:,ymask]
+
+        winterp = RegularGridInterpolator((x[xmask],y[ymask]),window)
+
+        nx = np.linspace(min(x[xmask]),max(x[xmask]),wdim[0])
+        ny = np.linspace(min(y[ymask]),max(y[ymask]),wdim[1])
+
+        NX, NY = np.meshgrid(nx,ny)
+
+        newdat = np.reshape(winterp((NX,NY)),(64,64,1))
+        return newdat
+    
+    def gal_ml(self, model, cat):
+        x = np.linspace(0,self.img.shape[0],self.img.shape[0])
+        y = np.linspace(0,self.img.shape[1],self.img.shape[1])
+        coordlist = list(zip(cat['x-centroid'],cat['y-centroid']))
+        
+        for i, (coord, peak) in enumerate(zip(coordlist, cat['peaks'])):
+            width = 5 * np.log(peak) - 5
+            wind = self.objwindow(x,y,coord, width, 5, [64,64])
+            
+
+    
+if __name__ == '__main__':
+    # using the class
+    image = Process2('A1_mosaic.fits')
+    # clean bleeding
+    bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431),(4488,1531),(4183,1036),(4275,1642)]
+    image.clean_bleeding(bleeding)
+    # identify objects
+    y,x = image.identify_objects()
+    # plot
+    plt.figure(figsize=(10,8))
+    normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
+    plt.imshow(image.img,cmap='Greys',norm=normalise)
+    # plt.imshow(image.original,cmap='inferno',norm=colors.LogNorm())
+    plt.plot(x,y,'.',color='red',alpha=0.5)
+    for i in range(len(image.apertures)):
+        image.apertures[i].plot(color='blue', lw=1.5, alpha=0.5)
+    plt.colorbar()
+    plt.show()
+
+    # cumulative number count plot
+    m,N=image.number_count(plotting=False)
+    # m1,N1=image.number_count(plotting=False,ser=True)
+    plt.figure()
+    plt.plot(m,np.log(N),'.',color='blue',label='All objects')
+    # plt.plot(m1,np.log(N1),'.',color='blueviolet',label='Galaxies')
+    plt.legend()
+    plt.show()
+    # print('Galaxy = ' +str(N1[-1]))
+    # print('Not Galaxy = ' +str(N[-1]-N1[-1]))
