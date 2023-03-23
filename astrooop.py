@@ -238,7 +238,7 @@ class Process_fake(Process):
 
 
         pic = ninter((X,Y))
-        wnoise = np.random.rand(size[0],size[1])*noise_params['whiterange'] + noise_params['whiteshift']
+        wnoise = np.random.normal(noise_params['whiteshift'],noise_params['whiterange'],(size[0],size[1]))
         pic += wnoise
         
 
@@ -276,9 +276,11 @@ class Process_fake(Process):
         xpoints = np.random.randint(len(self.img[0]),size = num)
         ypoints = np.random.randint(len(self.img[:,0]),size = num)
 
-        xrs = np.random.randint(min(widthr),max(widthr),size = num)
+        #xrs = np.random.randint(min(widthr),max(widthr),size = num)
+        
         skews = abs(np.random.rand(num))*abs(skew[0]-skew[1]) + min(skew)
         amps = np.random.randint(min(ampr),max(ampr), size = num)
+        xrs = 5*np.log(amps) -5
 
         x = np.arange(0,len(self.img[0]),1, dtype=int)
         y = np.arange(0,len(self.img[1]),1, dtype=int)
@@ -292,13 +294,13 @@ class Process_fake(Process):
             
             angle = np.random.randint(0,360,1)
 
-            xmask = (x < x0 + 4*xr) & (x > x0 - 4*xr)
-            ymask = (y0 - 4*xr < y) & (y < y0 + 4*xr)
+            xmask = (x < x0 + 10*xr) & (x > x0 - 10*xr)
+            ymask = (y0 - 10*xr < y) & (y < y0 + 10*xr)
 
             xm = x[xmask]
             ym = y[ymask]
 
-            if xm.size == ym.size:
+            if xm.size == ym.size and xm.size > 1:
 
                 xx, yy = np.meshgrid(xm,ym)
                 sg = self.sersic(xx,yy,x0,y0,a,xr,n,s)
@@ -324,9 +326,10 @@ class Process_fake(Process):
         xpoints = np.random.randint(self.img.shape[0],size = num)
         ypoints = np.random.randint(self.img.shape[0],size = num)
         
-        widths = np.random.randint(min(maxwidth),max(maxwidth),size = num)
+        #widths = np.random.randint(min(maxwidth),max(maxwidth),size = num)#
 
         amps = np.random.randint(min(maxamp),max(maxamp), size = num)
+        widths = np.log(amps) + 5
 
         x = np.arange(0,len(self.img[0]),1, dtype=int)
         y = np.arange(0,len(self.img[1]),1, dtype=int)
@@ -335,13 +338,13 @@ class Process_fake(Process):
         swidths = []
         for i, (x0,y0,sig,a) in tqdm(enumerate(zip(xpoints,ypoints,widths,amps))):
 
-            xmask = (x < x0 + 4*sig) & (x > x0 - 4*sig)
-            ymask = (y0 - 4*sig < y) & (y < y0 + 4*sig)
+            xmask = (x < x0 + 5*sig) & (x > x0 - 5*sig)
+            ymask = (y0 - 5*sig < y) & (y < y0 + 5*sig)
 
             xm = x[xmask]
             ym = y[ymask]
 
-            if ym.size == xm.size: 
+            if ym.size == xm.size and xm.size > 1: 
 
                 xx, yy = np.meshgrid(xm,ym)
                 sg = self.gaussian2d(xx,yy,x0,y0,sig,sig,a)
@@ -450,15 +453,15 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    # testobjs = {'numgal': 2000, 'numstar': 2000, 'galamp': [500,5000], 'staramp': [5000,500], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,2]}
-    # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 5*36, 'whiteshift': 5}, objparams=testobjs)
+    testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [36000,20], 'staramp': [36000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,2]}
+    test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
     # test.save_pkl('2000gal_2000star_3000_3000')
 
     # test.show_img(objscatter = True)
 
-    with open('2000gal_2000star_3000_3000.pkl', 'rb') as f:
-        test = pickle.load(f)
+    # with open('2000gal_2000star_3000_3000.pkl', 'rb') as f:
+    #     test = pickle.load(f)
 
     test.show_img(objscatter = True)
 

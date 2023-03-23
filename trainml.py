@@ -6,7 +6,7 @@ import pickle
 from sklearn.model_selection import train_test_split
 import numpy as np
 
-with open('2000gal_2000star_3000_3000.pkl', 'rb') as f:
+with open('2000gal_1000star_3000_3000.pkl', 'rb') as f:
     test = pickle.load(f)
 
 labeldata = test.createdataset()
