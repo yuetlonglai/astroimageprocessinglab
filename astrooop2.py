@@ -90,45 +90,46 @@ class Process2:
                 varying_phot.append(photo['aperture_sum'])
                 self.apertures.append(individual_apertures)
         # sersic profile and return
-        # if sersic == True:
-        #     nvalues = []
-        #     galaxies_x = []
-        #     galaxies_y = []
-        #     varying_phot_sersic = []
-        #     for i in range(len(positions)):
-        #         radial = np.linspace(0.001,sources_radius[i],20)
-        #         annulal_flux = []
-        #         radial_mid = []
-        #         for j in range(len(radial)-1):
-        #             individual_annulus = aperture.EllipticalAnnulus(
-        #                 positions[i],
-        #                 a_in = radial[j]*(1+abs(ellipticity[i])/2),
-        #                 a_out = radial[j+1]*(1+abs(ellipticity[i])/2),
-        #                 b_in = radial[j]*(1-abs(ellipticity[i])/2),
-        #                 b_out = radial[j+1]*(1-abs(ellipticity[i])/2)
-        #             )
-        #             flux = aperture.aperture_photometry(self.img,individual_annulus,method='subpixel')
-        #             annulal_flux.append(flux['aperture_sum'][0])
-        #             radial_mid.append((radial[j]+radial[j+1])/2)
-        #         try:
-        #             popt,pcov = optimize.curve_fit(self.log_sersic,radial_mid,annulal_flux,p0=[abs(sources['peak'][i]),1e3,1.0])
-        #         except:
-        #             pass
-        #         if popt[-1] > 0.5 and popt[-1] < 10:
-        #             nvalues.append(popt[-1])
-        #             galaxies_x.append(positions[i][0])
-        #             galaxies_y.append(positions[i][1])
-        #             individual_apertures = aperture.EllipticalAperture(positions[i],a=sources_radius[i]*(1+abs(ellipticity[i])/2),b=sources_radius[i]*(1-abs(ellipticity[i])/2),theta=np.arctan(ellipticity[i]))
-        #             photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
-        #             varying_phot_sersic.append(photo['aperture_sum'])
-        #     if catalogue == False:
-        #         return galaxies_y, galaxies_x
-        #     else:
-        #         catalogue_table = pd.DataFrame(columns=['x-centroid','y-centroid'])
-        #         catalogue_table['x-centroid'] = galaxies_x
-        #         catalogue_table['y-centroid'] = galaxies_y
-        #         catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot_sersic))
-        #         return catalogue_table
+        if sersic == True:
+            nvalues = []
+            galaxies_x = []
+            galaxies_y = []
+            varying_phot_sersic = []
+            for i in range(len(positions)):
+                radial = np.linspace(0.001,sources_radius[i],20)
+                annulal_flux = []
+                radial_mid = []
+                for j in range(len(radial)-1):
+                    individual_annulus = aperture.EllipticalAnnulus(
+                        positions[i],
+                        a_in = radial[j]*(1+abs(ellipticity[i])/2),
+                        a_out = radial[j+1]*(1+abs(ellipticity[i])/2),
+                        b_in = radial[j]*(1-abs(ellipticity[i])/2),
+                        b_out = radial[j+1]*(1-abs(ellipticity[i])/2)
+                    )
+                    flux = aperture.aperture_photometry(self.img,individual_annulus,method='subpixel')
+                    annulal_flux.append(flux['aperture_sum'][0])
+                    radial_mid.append((radial[j]+radial[j+1])/2)
+                try:
+                    popt,pcov = optimize.curve_fit(self.log_sersic,radial_mid,np.log10(annulal_flux),p0=[abs(sources['peak'][i]),5e6,1.0])
+                    if popt[-1] > 0.5 and popt[-1] < 10:
+                        nvalues.append(popt[-1])
+                        galaxies_x.append(positions[i][0])
+                        galaxies_y.append(positions[i][1])
+                        individual_apertures = aperture.EllipticalAperture(positions[i],a=sources_radius[i]*(1+abs(ellipticity[i])/2),b=sources_radius[i]*(1-abs(ellipticity[i])/2),theta=np.arctan(ellipticity[i]))
+                        photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
+                        varying_phot_sersic.append(photo['aperture_sum'])
+                except:
+                    pass
+            if catalogue == False:
+                return galaxies_y, galaxies_x
+            else:
+                catalogue_table = pd.DataFrame(columns=['x-centroid','y-centroid'])
+                catalogue_table['x-centroid'] = galaxies_x
+                catalogue_table['y-centroid'] = galaxies_y
+                catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot_sersic))
+                catalogue_table['sersic_index'] = nvalues
+                return catalogue_table
         # return method
         if catalogue == False:
             print('Number of Object Detected : ' + str(len(sources)))
@@ -166,18 +167,25 @@ class Process2:
         logN = np.log10(N)
         logNerr = (1/N * N**0.5)*logN
         if plotting == True:
-            print(N)
-            fit,cov = np.polyfit(m[:-15],logN[:-15],1,w=1/logNerr[:-15],cov=True)
+            lim = np.count_nonzero(np.where(m < 17.5, True, False))
+            fit,cov = np.polyfit(m[:lim],logN[:lim],1,w=1/logNerr[:lim],cov=True)
             plogN = np.poly1d(fit)
             print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
-            plt.figure()
-            plt.xlabel(r'$m$')
-            plt.ylabel(r'$log(N(m))$')
-            plt.errorbar(x=m,y=logN,fmt='.',yerr=logNerr,capsize=2,label='Data '+str(aperture_num),color='blue')
-            plt.plot(m,plogN(m),'-',color='red',label='Fitted')
-            plt.legend(loc='best')
-            plt.show()
-        return m, N#, abs(np.array(N)-np.array(Nerr_l)), abs(np.array(Nerr_u)-np.array(N))
+            # plt.figure()
+            # plt.xlabel(r'$m$')
+            # plt.ylabel(r'$log(N(m))$')
+            if ser == False:
+                plt.errorbar(x=m,y=logN,fmt='.',yerr=logNerr,capsize=2,label='All Objects',color='blue')
+                plt.plot(m,plogN(m),'-',color='red',label='Fitted All')
+            else:
+                plt.errorbar(x=m,y=logN,fmt='.',yerr=logNerr,capsize=2,label='Galaxies',color='blueviolet')
+                plt.plot(m,plogN(m),'-',color='salmon',label='Fitted Galaxies')
+            # plt.legend(loc='best')
+            # plt.show()
+        if ser == False:
+            return m, N
+        else:
+            return m, N, cat['sersic_index']
     
     def log_sersic(self,r,I0,k,n):
         return np.log(I0) - k*r**(1/n)
@@ -287,17 +295,11 @@ if __name__ == '__main__':
     plt.scatter(mg,np.log(Ng),color='blueviolet',label='Galaxies')
     plt.legend()
     plt.show()
-
-
-
-    
-
-
-    
-    
-    # for i, (wind, predict) in enumerate(zip(winds, predicts)):
-    #     image.show_img(wind)
-    #     print(predict)
-
-    # print('Galaxy = ' +str(N1[-1]))
-    # print('Not Galaxy = ' +str(N[-1]-N1[-1]))
+    print('Galaxy = ' +str(N1[-1]))
+    print('Not Galaxy = ' +str(N[-1]-N1[-1]))
+    # Sersic index histogram
+    plt.figure()
+    plt.ylabel('Count')
+    plt.xlabel('Sersic Index')
+    bin_heights, bin_edges, patches = plt.hist(n,bins=100,color='blue')
+    plt.show()
