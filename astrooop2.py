@@ -12,7 +12,9 @@ from photutils import background
 from photutils import aperture
 from scipy import optimize
 from scipy.interpolate import RegularGridInterpolator
-
+import pickle
+from tensorflow.keras import models, Sequential
+import tensorflow as tf
 class Process2:
     def __init__(self, imgpath) -> None:
         # load image
@@ -144,11 +146,12 @@ class Process2:
                 catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot))
             return catalogue_table
         
-    def number_count(self, plotting=False,num='',ser=False):
-        if ser == False:
-            cat = self.identify_objects(catalogue=True)
-        else:
-            cat = self.identify_objects(catalogue=True,sersic=True)
+    def number_count(self, plotting=False,num='',ser=False, cat = None):
+        if cat is None:
+            if ser == False:
+                cat = self.identify_objects(catalogue=True)
+            else:
+                cat = self.identify_objects(catalogue=True,sersic=True)
         aperture_num = num
         magnitude_radius = cat['magnitude_'+str(aperture_num)]
         m = np.linspace(min(magnitude_radius),max(magnitude_radius),50)
@@ -184,27 +187,52 @@ class Process2:
         ymask = (coords[1] - wscale * rng < y) & (y < coords[1] + wscale * rng)
 
 
-        window = self.img[xmask][:,ymask]
+        window = self.img[ymask][:,xmask]
+        
+        winterp = RegularGridInterpolator((y[ymask],x[xmask]),window)
 
-        winterp = RegularGridInterpolator((x[xmask],y[ymask]),window)
 
         nx = np.linspace(min(x[xmask]),max(x[xmask]),wdim[0])
         ny = np.linspace(min(y[ymask]),max(y[ymask]),wdim[1])
 
-        NX, NY = np.meshgrid(nx,ny)
-
-        newdat = np.reshape(winterp((NX,NY)),(64,64,1))
+        NX, NY = np.meshgrid(ny,nx)
+        newdat = winterp((NX,NY))
+        newdat = (newdat - np.amin(newdat))/np.amax(newdat - np.amin(newdat))
+        newdat = np.reshape(newdat,(64,64,1))
         return newdat
     
     def gal_ml(self, model, cat):
-        x = np.linspace(0,self.img.shape[0],self.img.shape[0])
-        y = np.linspace(0,self.img.shape[1],self.img.shape[1])
+        x = np.linspace(0,self.img.shape[1],self.img.shape[1])
+        y = np.linspace(0,self.img.shape[0],self.img.shape[0])
         coordlist = list(zip(cat['x-centroid'],cat['y-centroid']))
         
+        winds = []
         for i, (coord, peak) in enumerate(zip(coordlist, cat['peaks'])):
             width = 5 * np.log(peak) - 5
-            wind = self.objwindow(x,y,coord, width, 5, [64,64])
-            
+            print(width)
+            wind = self.objwindow(x,y,coord, width, 2, [64,64])
+            winds.append(wind)
+        
+        winds = np.array(winds)
+
+        predicts = model.predict_on_batch(winds)
+
+        return (winds, predicts)
+    
+    def show_img(self, img = None):
+        # plotting the image
+        if img is None:
+            img = self.img
+        normalise = visualization.ImageNormalize(
+            img,
+            interval=visualization.AsymmetricPercentileInterval(5,95),
+            stretch=visualization.LinearStretch()
+            )
+        fig, ax = plt.subplots(ncols=2,figsize=(10,8))
+        ax[0].imshow(img,cmap='inferno', norm=colors.LogNorm())
+        ax[1].imshow(img,cmap='Greys',norm=normalise)
+        plt.show()
+
 
     
 if __name__ == '__main__':
@@ -227,12 +255,49 @@ if __name__ == '__main__':
     plt.show()
 
     # cumulative number count plot
+
+
+    model = models.load_model('TrainedModel.h5')
+
+    probability_model = Sequential([model, tf.keras.layers.Softmax()])
+    
+    cat = image.identify_objects(catalogue = True)
+
+    winds, predicts = image.gal_ml(probability_model,cat)
+
+    cat['galpreds'] = predicts[:,1]
+
+    galaxy_dat = cat.query('galpreds > 0.95')
+    plt.figure(figsize=(10,8))
+
+    normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
+    plt.imshow(image.img,cmap='Greys',norm=normalise)
+    plt.scatter(cat['x-centroid'],cat['y-centroid'], s=2, color = 'r')
+    plt.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=2)
+    plt.show()
+
+    
+    
     m,N=image.number_count(plotting=False)
+    mg, Ng = image.number_count(plotting = True,cat = galaxy_dat)
+
     # m1,N1=image.number_count(plotting=False,ser=True)
     plt.figure()
-    plt.plot(m,np.log(N),'.',color='blue',label='All objects')
-    # plt.plot(m1,np.log(N1),'.',color='blueviolet',label='Galaxies')
+    plt.scatter(m,np.log(N),color='blue',label='All objects')
+    plt.scatter(mg,np.log(Ng),color='blueviolet',label='Galaxies')
     plt.legend()
     plt.show()
+
+
+
+    
+
+
+    
+    
+    # for i, (wind, predict) in enumerate(zip(winds, predicts)):
+    #     image.show_img(wind)
+    #     print(predict)
+
     # print('Galaxy = ' +str(N1[-1]))
     # print('Not Galaxy = ' +str(N[-1]-N1[-1]))

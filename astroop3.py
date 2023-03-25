@@ -170,7 +170,7 @@ class Process_fake(Process2):
         return amplitude * np.exp(exponent)
 
     def sersic(self, x, y, x0, y0, Ie, Re, n, skew):
-        R = np.sqrt((x-x0)**2 + ((y - y0)/skew)**2)
+        R = np.sqrt(((x-x0))**2 + (((y - y0)/skew))**2)
         I = (Ie)*np.exp((-2*n - 1/3) * ((R/Re)**(1/n)))
         return I
     
@@ -244,9 +244,9 @@ if __name__ == '__main__':
     testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [36000,20], 'staramp': [36000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,2]}
     test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
-    # test.save_pkl('2000gal_2000star_3000_3000')
+    test.save_pkl('TrainingData')
 
-    # test.show_img(objscatter = True)
+    test.show_img(objscatter = True)
 
     # with open('2000gal_2000star_3000_3000.pkl', 'rb') as f:
     #     test = pickle.load(f)
