@@ -45,26 +45,6 @@ class Process_fake(Process2):
         wnoise = np.random.normal(noise_params['whiteshift'],noise_params['whiterange'],(size[0],size[1]))
         pic += wnoise
         
-
-        #pickles = glob('*backpickle*')
-        #print(pickles)
-        #check = [str(noise_params['seed']) not in (i) or (str(size[0]) + '_' + str(size[1])) not in (i) for i in pickles]
-        # print(check)
-        # if all(check):
-        #     noise = PerlinNoise(octaves = noise_params['octaves'], seed = noise_params['seed'])
-        #     pic = np.zeros(size)
-        #     for i in tqdm(range(size[0])):
-        #         for j in range(size[1]):
-        #             pic[i,j] = (noise([i/size[0], j/size[1]]))*noise_params['scale'] + noise_params['shift']
-        #     with open('{}_{}_backpickle_{}.pkl'.format(size[0],size[1],noise_params['seed']), 'wb') as f:
-        #         pickle.dump(pic,f)
-        
-        # else:
-        #     with open('{}_{}_backpickle_{}.pkl'.format(size[0],size[1],noise_params['seed']), 'rb') as f:
-        #         pic = pickle.load(f)
-            
-        
-        
         cls.img = pic
         print(cls.img)
         print(cls.img.shape)
@@ -73,6 +53,8 @@ class Process_fake(Process2):
         cls.starprops = cls.rand_star(objparams['numstar'],objparams['staramp'],objparams['starwidth'])
         cls.average_background = noise_params['shift']
         cls.background_sigma = noise_params['scale']/2
+        cls.zpinst = 25.3
+        cls.zpinst_error = 0.02
         cls.show_img()
 
 
@@ -94,6 +76,7 @@ class Process_fake(Process2):
         
         coords = []
         swidths = []
+        flux = []
         for i, (x0,y0,xr,s,n,a) in tqdm(enumerate(zip(xpoints,ypoints,xrs,skews,ns,amps))):
             
             angle = np.random.randint(0,360,1)
@@ -108,7 +91,7 @@ class Process_fake(Process2):
 
                 xx, yy = np.meshgrid(xm,ym)
                 sg = self.sersic(xx,yy,x0,y0,a,xr,n,s)
-                
+                fl = sum(sg.flatten())
                 sers = np.pad(sg, ([min(xm),x.size - min(xm) + x.size],[min(ym),y.size - min(ym)+ym.size] ))
                 sers = sers[:x.size,:y.size]
 
@@ -121,10 +104,10 @@ class Process_fake(Process2):
 
                 coords.append(np.array([x0,y0]))
                 swidths.append(np.array([xr,xr/s]))
-
+                flux.append(fl)
                 self.img += np.array(gimg)
 
-        return {'coords': np.array(coords), 'widths': np.array(swidths), 'amps': amps}
+        return {'coords': np.array(coords), 'widths': np.array(swidths), 'amps': amps, 'flux': flux}
 
     def rand_star(self, num, maxamp, maxwidth):
         xpoints = np.random.randint(self.img.shape[0],size = num)
@@ -140,6 +123,7 @@ class Process_fake(Process2):
 
         coords = []
         swidths = []
+        flux = []
         for i, (x0,y0,sig,a) in tqdm(enumerate(zip(xpoints,ypoints,widths,amps))):
 
             xmask = (x < x0 + 5*sig) & (x > x0 - 5*sig)
@@ -152,6 +136,7 @@ class Process_fake(Process2):
 
                 xx, yy = np.meshgrid(xm,ym)
                 sg = self.gaussian2d(xx,yy,x0,y0,sig,sig,a)
+                fl = sum(sg.flatten())
                 gaus = np.pad(sg, ([min(xm),x.size - min(xm) + x.size],[min(ym),y.size - min(ym)+ym.size]))
                 gaus = gaus[:x.size,:y.size]
                 #gaus[xmask][:,ymask] += self.gaussian2d(xx,yy,x0,y0,sig,sig,a)
@@ -161,9 +146,11 @@ class Process_fake(Process2):
                 self.img += gaus   
                 coords.append(np.array([x0,y0]))
                 swidths.append(np.array([sig,sig]))
+                flux.append(fl)
 
 
-        return {'coords': np.array(coords), 'widths': np.array(swidths), 'amps': amps}
+
+        return {'coords': np.array(coords), 'widths': np.array(swidths), 'amps': amps, 'flux': flux}
         
     def gaussian2d(self, x, y, x0, y0, sigma_x, sigma_y, amplitude):
         exponent = -((x-x0)**2/(2*sigma_x**2) + (y-y0)**2/(2*sigma_y**2))
@@ -227,6 +214,38 @@ class Process_fake(Process2):
             ax[0].scatter(gcoords[:,1],gcoords[:,0],color = 'r', alpha = 0.5)
         plt.show()
 
+    def test_ident(self):
+        cat = self.identify_objects(catalogue=True, bord_size = 1)
+        flux = np.concatenate((self.galprops['flux'],self.starprops['flux']))
+        peaks = np.concatenate(((self.galprops['amps'],self.starprops['amps'])))
+        magnitude = self.zpinst - 2.5*np.log10(flux)
+
+        print('Actual Mean: {}, Actual Std: {}'.format(magnitude.mean(),magnitude.std()))
+        fig, ax = plt.subplots(2,1)
+        ax[0].hist(magnitude, bins = 20,density=True, alpha = 0.5, label = 'Actual Distribution')
+        cat = cat.dropna()
+        ax[0].hist(cat['magnitude_'], bins = 20,density=True, alpha = 0.5, label = 'Detected Distribution')
+        ax[0].legend()
+        print('Detected Mean: {}, Detected Std: {}'.format(cat['magnitude_'].mean(),cat['magnitude_'].std()))
+        ax[0].grid()
+        print('num of objs', len(magnitude))
+        print('detected objs:', len(cat['magnitude_']))
+        ax[0].set_xlabel('Magnitude')
+        ax[0].set_ylabel('Frequency Density')
+
+
+        ax[1].hist(peaks, bins = 20,density=True, alpha = 0.5, label = 'Actual Distribution')
+        ax[1].hist(cat['peaks'], bins = 20,density=True, alpha = 0.5, label = 'Detected Distribution')
+        ax[1].set_xlabel('Peak Intensity')
+        ax[1].grid()
+
+        plt.show()
+        return cat
+
+
+
+
+
 
 
             
@@ -241,22 +260,36 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [36000,20], 'staramp': [36000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,2]}
-    test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
+    # testobjs = {'numgal': 1, 'numstar': 2000, 'galamp': [10000,20], 'staramp': [10000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,2]}
+    # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
-    test.save_pkl('TrainingData')
+    # test.save_pkl('TestData')
 
-    test.show_img(objscatter = True)
+    #test.show_img(objscatter = True)
 
-    # with open('2000gal_2000star_3000_3000.pkl', 'rb') as f:
-    #     test = pickle.load(f)
+    with open('TestData.pkl', 'rb') as f:
+        test = pickle.load(f)
 
-    test.show_img(objscatter = True)
+    test.show_img()
 
-    data = test.createdataset()
+    #data = test.createdataset()
 
+    tcat = test.test_ident()
 
-    for i,(d,lab) in enumerate(zip(data['data'],data['label'])):
-        print(lab)
-        test.show_img(d)
-        plt.show()
+    x = tcat['x-centroid']
+    y = tcat['y-centroid']
+
+    plt.figure(figsize=(10,8))
+    normalise = visualization.ImageNormalize(test.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
+    plt.imshow(test.img,cmap='Greys',norm=normalise)
+    # plt.imshow(image.original,cmap='inferno',norm=colors.LogNorm())
+    plt.plot(x,y,'.',color='red',alpha=0.5)
+    for i in range(len(test.apertures)):
+        test.apertures[i].plot(color='blue', lw=1.5, alpha=0.5)
+    plt.colorbar()
+    plt.show()
+
+    # for i,(d,lab) in enumerate(zip(data['data'],data['label'])):
+    #     print(lab)
+    #     test.show_img(d)
+    #     plt.show()

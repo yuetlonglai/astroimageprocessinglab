@@ -58,19 +58,23 @@ class Process2:
                 )
         return self
     
-    def identify_objects(self,catalogue=False,aperture_vary=True,sersic=False): # use photoutils aperture, photometry, background, detection
+    def identify_objects(self,catalogue=False,aperture_vary=True,sersic=False, bord_size = 150): # use photoutils aperture, photometry, background, detection
         # remove background
-        self.bkg = background.Background2D(self.img,(50,50),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
+        self.bkg = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
+        self.show_img(self.bkg.background)
         self.img = self.img - self.bkg.background
         # mask
         mask = np.ones(self.img.shape, dtype=bool)
-        mask[150:-150, 150:-150] = False
+        mask[bord_size:-bord_size, bord_size:-bord_size] = False
         # finding sources
         daofind = detection.DAOStarFinder(fwhm=7.0,threshold=5*self.background_sigma)
         sources = daofind(self.img, mask=mask)
+        
         sourcesx = sources['xcentroid']
         sourcesy = sources['ycentroid']
         sources_radius = 5.0 * np.log10(sources['peak']) - 5.0 # approximate the relationship between brightness and its radius => works
+        sources_radius = np.where(sources_radius > 2, sources_radius,2)
+
         positions = np.column_stack([sourcesx,sourcesy])
         ellipticity = sources['roundness1']
         # aperture photometry
@@ -86,6 +90,7 @@ class Process2:
             for i in range(len(positions)):
                 # individual_apertures = aperture.CircularAperture(positions[i],r=sources_radius[i])
                 individual_apertures = aperture.EllipticalAperture(positions[i],a=sources_radius[i]*(1+abs(ellipticity[i])/2),b=sources_radius[i]*(1-abs(ellipticity[i])/2),theta=np.arctan(ellipticity[i]))
+                #print(individual_apertures)
                 photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
                 varying_phot.append(photo['aperture_sum'])
                 self.apertures.append(individual_apertures)
@@ -139,6 +144,7 @@ class Process2:
             catalogue_table['x-centroid'] = sourcesx
             catalogue_table['y-centroid'] = sourcesy
             catalogue_table['peaks'] = sources['peak']
+            #catalogue_table = catalogue_table.query('peaks > 0')
             if aperture_vary == False:
                 catalogue_table['magnitude_0'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_0'])
                 catalogue_table['magnitude_1'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_1'])
