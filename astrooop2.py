@@ -15,6 +15,8 @@ from scipy.interpolate import RegularGridInterpolator
 import pickle
 from tensorflow.keras import models, Sequential
 import tensorflow as tf
+from tqdm import tqdm
+
 class Process2:
     def __init__(self, imgpath) -> None:
         # load image
@@ -58,21 +60,63 @@ class Process2:
                 )
         return self
     
+    def circle_lowpass(self, cutoff, tau):
+        # self.show_img(self.img)
+        circ = self.draw_circle(cutoff, tau)
+
+        imgfft = fft.fft2(self.img)
+        imgfft = fft.fftshift(imgfft)
+        # self.show_img(abs(imgfft))
+        # print(imgfft)
+
+        imgmask = np.multiply(imgfft, circ[:imgfft.shape[0], :imgfft.shape[1]]) 
+
+        # self.show_img(circ)
+        # self.show_img(abs(imgmask))
+
+        imgifft = fft.ifft2(imgmask)
+        # self.show_img(abs(imgifft))
+        return abs(imgifft)
+
+
+    def draw_circle(self, r, tau):
+        shape = np.asarray([int(i/2) for i in self.img.shape]) + [1,0]
+        canv = np.full(shape, 0, dtype = float)
+        center = np.array(self.img.shape, dtype = int)/2.0
+        min_dist = 1e8 
+        for i in range((len(canv))):
+            for j in range((len(canv[i]))):
+                dist = (i- center[0])**2 + (j - center[1])**2
+                if  dist <= r ** 2:
+                    canv[i,j] = 1
+                else:
+                    #val = -tau*np.sqrt(dist - r**2) + 1
+                    val = np.exp(-(tau*(np.sqrt(dist - r**2))))
+                    if val < 0:
+                        val = 0
+                    canv[i,j] = val
+        
+        canv = np.pad(canv,((0,shape[0]),(0,shape[1])), mode = 'reflect')
+        return canv
+     
     def identify_objects(self,catalogue=False,aperture_vary=True,sersic=False, bord_size = 150): # use photoutils aperture, photometry, background, detection
         # remove background
-        self.bkg = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
-        self.show_img(self.bkg.background)
-        self.img = self.img - self.bkg.background
+        #self.bkg = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
+        self.bkg = self.circle_lowpass(3,1)
+        self.show_img(self.bkg)
+        analimg = self.img - self.bkg
+        analimg = np.where(analimg < 0, 0, analimg)
         # mask
         mask = np.ones(self.img.shape, dtype=bool)
         mask[bord_size:-bord_size, bord_size:-bord_size] = False
         # finding sources
-        daofind = detection.DAOStarFinder(fwhm=7.0,threshold=5*self.background_sigma)
-        sources = daofind(self.img, mask=mask)
-        
+        daofind = detection.DAOStarFinder(fwhm=7.0,threshold=3*self.background_sigma)
+        sources = daofind(analimg, mask=mask)
+        sources['peak'] = abs(sources['peak'])
+        print('sources1', len(sources))
         sourcesx = sources['xcentroid']
         sourcesy = sources['ycentroid']
-        sources_radius = 5.0 * np.log10(sources['peak']) - 5.0 # approximate the relationship between brightness and its radius => works
+        sources_radius = (sources['peak'])**(1/2.5) # approximate the relationship between brightness and its radius => works
         sources_radius = np.where(sources_radius > 2, sources_radius,2)
 
         positions = np.column_stack([sourcesx,sourcesy])
@@ -82,25 +126,37 @@ class Process2:
             # with fixed aperture(s)
             multi_apertures = [aperture.CircularAperture(positions, r=r) for r in [6.0,8.0,10.0]]
             self.apertures = aperture.CircularAperture(positions, r=6.0)
-            phot_table = aperture.aperture_photometry(self.img, multi_apertures, method='subpixel')
+            phot_table = aperture.aperture_photometry(analimg, multi_apertures, method='subpixel')
         else:
             # with varying apertures
             varying_phot = []
             self.apertures = []
-            for i in range(len(positions)):
+            for i in tqdm(range(len(positions))):
                 # individual_apertures = aperture.CircularAperture(positions[i],r=sources_radius[i])
                 individual_apertures = aperture.EllipticalAperture(positions[i],a=sources_radius[i]*(1+abs(ellipticity[i])/2),b=sources_radius[i]*(1-abs(ellipticity[i])/2),theta=np.arctan(ellipticity[i]))
                 #print(individual_apertures)
-                photo = aperture.aperture_photometry(self.img,individual_apertures, method='subpixel')
+                app_mask = individual_apertures.to_mask()
+                photo = aperture.aperture_photometry(analimg,individual_apertures, method='exact')
                 varying_phot.append(photo['aperture_sum'])
                 self.apertures.append(individual_apertures)
+
+                for xi in range(app_mask.shape[1]):
+                    x = app_mask.bbox.ixmin + xi
+                    for yj in range(app_mask.shape[0]):
+                        y = app_mask.bbox.iymin + yj
+                        if y < self.img.shape[0] and x < self.img.shape[1]:
+                            analimg[y,x] = (1 - app_mask.data[yj,xi])*analimg[y,x]
+                
+                #self.show_img(analimg)
+        print(i)
+
         # sersic profile and return
         if sersic == True:
             nvalues = []
             galaxies_x = []
             galaxies_y = []
             varying_phot_sersic = []
-            for i in range(len(positions)):
+            for i in tqdm(range(len(positions))):
                 radial = np.linspace(0.001,sources_radius[i],20)
                 annulal_flux = []
                 radial_mid = []
@@ -140,6 +196,7 @@ class Process2:
             print('Number of Object Detected : ' + str(len(sources)))
             return sourcesy, sourcesx
         else:
+            print('sources 2', len(sources))
             catalogue_table = pd.DataFrame(columns=['x-centroid','y-centroid'])
             catalogue_table['x-centroid'] = sourcesx
             catalogue_table['y-centroid'] = sourcesy
@@ -150,6 +207,7 @@ class Process2:
                 catalogue_table['magnitude_1'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_1'])
                 catalogue_table['magnitude_2'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_2'])
             else:
+                catalogue_table['flux'] = np.array(varying_phot)
                 catalogue_table['magnitude_'] = self.zpinst - 2.5*np.log10(np.array(varying_phot))
             return catalogue_table
         
@@ -280,7 +338,7 @@ if __name__ == '__main__':
     winds, predicts = image.gal_ml(probability_model,cat)
 
     cat['galpreds'] = predicts[:,1]
-
+    #catalouge w only galaxies as predicted by nn
     galaxy_dat = cat.query('galpreds > 0.95')
     plt.figure(figsize=(10,8))
 

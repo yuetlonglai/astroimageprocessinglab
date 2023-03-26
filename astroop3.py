@@ -113,10 +113,10 @@ class Process_fake(Process2):
         xpoints = np.random.randint(self.img.shape[0],size = num)
         ypoints = np.random.randint(self.img.shape[0],size = num)
         
-        #widths = np.random.randint(min(maxwidth),max(maxwidth),size = num)#
+        widths = np.random.randint(min(maxwidth),max(maxwidth),size = num)#
 
         amps = np.random.randint(min(maxamp),max(maxamp), size = num)
-        widths = np.log(amps) + 5
+        #widths = np.log(amps) + 5
 
         x = np.arange(0,len(self.img[0]),1, dtype=int)
         y = np.arange(0,len(self.img[1]),1, dtype=int)
@@ -160,7 +160,6 @@ class Process_fake(Process2):
         R = np.sqrt(((x-x0))**2 + (((y - y0)/skew))**2)
         I = (Ie)*np.exp((-2*n - 1/3) * ((R/Re)**(1/n)))
         return I
-    
 
 
 
@@ -219,28 +218,51 @@ class Process_fake(Process2):
         flux = np.concatenate((self.galprops['flux'],self.starprops['flux']))
         peaks = np.concatenate(((self.galprops['amps'],self.starprops['amps'])))
         magnitude = self.zpinst - 2.5*np.log10(flux)
-
-        print('Actual Mean: {}, Actual Std: {}'.format(magnitude.mean(),magnitude.std()))
-        fig, ax = plt.subplots(2,1)
-        ax[0].hist(magnitude, bins = 20,density=True, alpha = 0.5, label = 'Actual Distribution')
+        print('yesna ', len(cat))
         cat = cat.dropna()
-        ax[0].hist(cat['magnitude_'], bins = 20,density=True, alpha = 0.5, label = 'Detected Distribution')
+        imgflux = 10**((self.zpinst - cat['magnitude_'])/2.5)
+        print('Actual Mean: {}, Actual Std: {}'.format(magnitude.mean(),magnitude.std()))
+        fig, ax = plt.subplots(3,1)
+        
+        magbinnum = int((max(magnitude) - min(magnitude)))
+        n, bins, h1 = ax[0].hist(magnitude, bins = magbinnum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(magnitude.mean(), magnitude.std()))
+        datmagbinnum = int((max(cat['magnitude_']) - min(cat['magnitude_'])))
+        n, bins, h2 = ax[0].hist(cat['magnitude_'], bins = datmagbinnum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(cat['magnitude_'].mean(), cat['magnitude_'].std()))
         ax[0].legend()
         print('Detected Mean: {}, Detected Std: {}'.format(cat['magnitude_'].mean(),cat['magnitude_'].std()))
         ax[0].grid()
         print('num of objs', len(magnitude))
         print('detected objs:', len(cat['magnitude_']))
         ax[0].set_xlabel('Magnitude')
-        ax[0].set_ylabel('Frequency Density')
+        
 
-
-        ax[1].hist(peaks, bins = 20,density=True, alpha = 0.5, label = 'Actual Distribution')
-        ax[1].hist(cat['peaks'], bins = 20,density=True, alpha = 0.5, label = 'Detected Distribution')
+        peakbinnum = int((max(peaks) - min(peaks))/150)
+        datpeakbinum = int((max(cat['peaks']) - min(cat['peaks']))/150)
+        ax[1].hist(peaks, bins = peakbinnum, alpha = 0.5)
+        ax[1].hist(cat['peaks'], bins = datpeakbinum, alpha = 0.5)
         ax[1].set_xlabel('Peak Intensity')
         ax[1].grid()
+        ax[1].set_ylabel('Frequency')
 
+        fluxbinnum = int((max(flux) - min(flux))/250000)
+        datfluxbinum = int((max(cat['flux']) - min(cat['flux']))/250000)
+        ax[2].hist(flux, bins = fluxbinnum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(flux.mean(), flux.std()))
+        ax[2].hist(cat['flux'], bins = datfluxbinum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(cat['flux'].mean(), cat['flux'].std()))
+        ax[2].set_xlabel('Flux')
+        ax[2].grid()
+        ax[2].legend()
+         
+        fig.legend((h1,h2), ('Actual Distribution','Detected Distribution'), loc = 'lower left')
+        fig.tight_layout()
         plt.show()
         return cat
+    
+
+
+
+
+
+
 
 
 
@@ -260,14 +282,14 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    # testobjs = {'numgal': 1, 'numstar': 2000, 'galamp': [10000,20], 'staramp': [10000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,2]}
+    # testobjs = {'numgal': 1, 'numstar': 3000, 'galamp': [20,19], 'staramp': [10000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [20,2]}
     # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
-    # test.save_pkl('TestData')
+    # test.save_pkl('TestData2')
 
-    #test.show_img(objscatter = True)
+    # test.show_img(objscatter = True)
 
-    with open('TestData.pkl', 'rb') as f:
+    with open('TestData2.pkl', 'rb') as f:
         test = pickle.load(f)
 
     test.show_img()
