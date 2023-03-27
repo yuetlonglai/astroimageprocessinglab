@@ -201,6 +201,7 @@ class Process2:
             catalogue_table['x-centroid'] = sourcesx
             catalogue_table['y-centroid'] = sourcesy
             catalogue_table['peaks'] = sources['peak']
+            catalogue_table['radius'] = sources_radius
             #catalogue_table = catalogue_table.query('peaks > 0')
             if aperture_vary == False:
                 catalogue_table['magnitude_0'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_0'])
@@ -281,7 +282,7 @@ class Process2:
         winds = []
         for i, (coord, peak) in enumerate(zip(coordlist, cat['peaks'])):
             width = 5 * np.log(peak) - 5
-            print(width)
+            #print(width)
             wind = self.objwindow(x,y,coord, width, 2, [64,64])
             winds.append(wind)
         
@@ -291,19 +292,50 @@ class Process2:
 
         return (winds, predicts)
     
-    def show_img(self, img = None):
+    def show_img(self, img = None, norm = True,plotnow = True):
         # plotting the image
-        if img is None:
-            img = self.img
-        normalise = visualization.ImageNormalize(
-            img,
-            interval=visualization.AsymmetricPercentileInterval(5,95),
-            stretch=visualization.LinearStretch()
-            )
-        fig, ax = plt.subplots(ncols=2,figsize=(10,8))
-        ax[0].imshow(img,cmap='inferno', norm=colors.LogNorm())
-        ax[1].imshow(img,cmap='Greys',norm=normalise)
-        plt.show()
+        if norm:
+            if img is None:
+                img = self.img
+            normalise = visualization.ImageNormalize(
+                img,
+                interval=visualization.AsymmetricPercentileInterval(5,95),
+                stretch=visualization.LinearStretch()
+                )
+            fig, ax = plt.subplots(ncols=2,figsize=(10,8))
+            ax[0].imshow(img,cmap='inferno', norm=colors.LogNorm())
+            ax[1].imshow(img,cmap='Greys',norm=normalise)
+    
+        else:
+            fig, ax = plt.subplots(ncols=1,figsize=(5,5))
+            ax.imshow(img,cmap='inferno')          
+    
+        if plotnow: plt.show()
+
+        return fig, ax
+
+
+
+    def showpredict(self, cat):
+        x = np.linspace(0,self.img.shape[1],self.img.shape[1])
+        y = np.linspace(0,self.img.shape[0],self.img.shape[0])
+        for i, (xc,yc,w,gp,sp) in enumerate(zip(cat['x-centroid'], cat['y-centroid'], cat['radius'], cat['galpreds'], cat['starpreds'])):
+            wind = self.objwindow(x,y, [xc,yc], w, 2, [64,64])
+
+            if gp > 0.95: label = 'Galaxy'
+            elif sp > 0.95: label = 'star'
+            else: label = 'Unidentified'
+
+            fig, ax = self.show_img(wind, norm = False, plotnow = False)
+
+            axin = ax.inset_axes([0.65,0.65,0.3,0.3])
+            axin.bar([0,1], [sp,gp], tick_label = ['Star', 'Galaxy'], color = ['r','b'])
+            axin.patch.set_alpha(0)
+            fig.tight_layout()
+            plt.show()
+
+
+
 
 
     
@@ -314,7 +346,10 @@ if __name__ == '__main__':
     bleeding = [(1400,1438),(514,558),(578,1456),(851,2133),(1292,776),(1196,2465),(1838,973),(2325,905),(2301,2131),(3184,2088),(4602,1431),(4488,1531),(4183,1036),(4275,1642)]
     image.clean_bleeding(bleeding)
     # identify objects
-    y,x = image.identify_objects()
+    #y,x = image.identify_objects(catalouge = True)
+    cat = image.identify_objects(catalogue = True)
+    y = cat['y-centroid']
+    x = cat['x-centroid']
     # plot
     plt.figure(figsize=(10,8))
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
@@ -333,24 +368,36 @@ if __name__ == '__main__':
 
     probability_model = Sequential([model, tf.keras.layers.Softmax()])
     
-    cat = image.identify_objects(catalogue = True)
+    #cat = image.identify_objects(catalogue = True)
 
     winds, predicts = image.gal_ml(probability_model,cat)
 
     cat['galpreds'] = predicts[:,1]
+    cat['starpreds'] = predicts[:,0]
+
     #catalouge w only galaxies as predicted by nn
+    star_dat = cat.query('starpreds > 0.95')
     galaxy_dat = cat.query('galpreds > 0.95')
-    plt.figure(figsize=(10,8))
+    unident = cat.query('galpreds < 0.95 & starpreds < 0.95')
+    image.showpredict(star_dat)
+
+    print(len(unident))
+
+    fig, ax = plt.subplots(ncols=1,figsize=(10,8))
 
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
-    plt.imshow(image.img,cmap='Greys',norm=normalise)
-    plt.scatter(cat['x-centroid'],cat['y-centroid'], s=2, color = 'r')
-    plt.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=2)
+    ax.imshow(image.img,cmap='Greys',norm=normalise)
+    s1 = ax.scatter(star_dat['x-centroid'],star_dat['y-centroid'], s=2, color = 'r')
+    s2 = ax.scatter(unident['x-centroid'],unident['y-centroid'], s=2, color = 'y')
+    s3 = ax.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=2)
+
+    fig.legend((s1,s2,s3), ('Star', 'Unidentified', 'Galaxy'))
+
     plt.show()
 
     
     
-    m,N=image.number_count(plotting=False)
+    m,N=image.number_count(plotting=False, cat = cat)
     mg, Ng = image.number_count(plotting = True,cat = galaxy_dat)
 
     # m1,N1=image.number_count(plotting=False,ser=True)
@@ -359,11 +406,12 @@ if __name__ == '__main__':
     plt.scatter(mg,np.log(Ng),color='blueviolet',label='Galaxies')
     plt.legend()
     plt.show()
-    print('Galaxy = ' +str(N1[-1]))
-    print('Not Galaxy = ' +str(N[-1]-N1[-1]))
-    # Sersic index histogram
-    plt.figure()
-    plt.ylabel('Count')
-    plt.xlabel('Sersic Index')
-    bin_heights, bin_edges, patches = plt.hist(n,bins=100,color='blue')
-    plt.show()
+
+    # print('Galaxy = ' +str(N1[-1]))
+    # print('Not Galaxy = ' +str(N[-1]-N1[-1]))
+    # # Sersic index histogram
+    # plt.figure()
+    # plt.ylabel('Count')
+    # plt.xlabel('Sersic Index')
+    # bin_heights, bin_edges, patches = plt.hist(n,bins=100,color='blue')
+    # plt.show()
