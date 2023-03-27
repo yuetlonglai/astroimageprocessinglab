@@ -335,10 +335,6 @@ class Process2:
             plt.show()
 
 
-
-
-
-    
 if __name__ == '__main__':
     # using the class
     image = Process2('A1_mosaic.fits')
@@ -379,7 +375,8 @@ if __name__ == '__main__':
     star_dat = cat.query('starpreds > 0.95')
     galaxy_dat = cat.query('galpreds > 0.95')
     unident = cat.query('galpreds < 0.95 & starpreds < 0.95')
-    image.showpredict(star_dat)
+
+    #image.showpredict(star_dat)
 
     print(len(unident))
 
@@ -387,12 +384,13 @@ if __name__ == '__main__':
 
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
     ax.imshow(image.img,cmap='Greys',norm=normalise)
-    s1 = ax.scatter(star_dat['x-centroid'],star_dat['y-centroid'], s=2, color = 'r')
-    s2 = ax.scatter(unident['x-centroid'],unident['y-centroid'], s=2, color = 'y')
-    s3 = ax.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=2)
+    s1 = ax.scatter(star_dat['x-centroid'],star_dat['y-centroid'], s=4, color = 'r')
+    s2 = ax.scatter(unident['x-centroid'],unident['y-centroid'], s=4, color = 'y')
+    s3 = ax.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=4)
 
     fig.legend((s1,s2,s3), ('Star', 'Unidentified', 'Galaxy'))
-
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
     plt.show()
 
     
