@@ -16,6 +16,7 @@ import PIL
 from glob import glob
 import pickle
 from scipy.interpolate import RegularGridInterpolator
+import matplotlib.cm as cm
 
 
 class Process_fake(Process2):
@@ -201,18 +202,20 @@ class Process_fake(Process2):
             img = self.img
         normalise = visualization.ImageNormalize(
             img,
-            interval=visualization.AsymmetricPercentileInterval(5,95),
+            interval=visualization.AsymmetricPercentileInterval(5,92),
             stretch=visualization.LinearStretch()
             )
         fig, ax = plt.subplots(ncols=2,figsize=(10,8))
-        ax[0].imshow(img,cmap='inferno', norm=colors.LogNorm())
+        ax[0].imshow(img,cmap='gnuplot')#, norm=colors.LogNorm())
         ax[1].imshow(img,cmap='Greys',norm=normalise)
         if objscatter:
             gcoords = self.galprops['coords']
             scoords = self.starprops['coords']
             ax[0].scatter(scoords[:,1],scoords[:,0],color = 'b', alpha = 0.5)
             ax[0].scatter(gcoords[:,1],gcoords[:,0],color = 'r', alpha = 0.5)
-        plt.show()
+        #plt.show()
+
+        return fig, ax
 
     def test_ident(self):
         cat = self.identify_objects(catalogue=True, bord_size = 1)
@@ -296,19 +299,25 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [5000,20], 'staramp': [5000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [20,2]}
-    test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
+    # testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [20000,20], 'staramp': [20000,20], 'galwidth': [10,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,4]}
+    # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
-    test.save_pkl('TrainingData2')
+    # test.save_pkl('TrainingData2')
 
-    test.show_img(objscatter = True)
+    # test.show_img(objscatter = True)
 
-
-
-    test.show_img()
+    test = Process_frompkl('TrainingData2')
+    test.img += np.random.normal(3450,100,(test.img.shape[0],test.img.shape[1]))
+    fig, ax = test.show_img()
+    handle, = ax[0].get_images()
+    ax[0].set_xticks([])
+    ax[0].set_yticks([])
+    ax[1].set_yticks([])
+    ax[1].set_xticks([])
+    fig.colorbar(handle, ax = ax[0],location = 'left')
 
     #data = test.createdataset()
-
+    plt.show()
     tcat = test.test_ident()
 
     x = tcat['x-centroid']

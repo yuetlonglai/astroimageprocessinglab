@@ -17,6 +17,7 @@ from tensorflow.keras import models, Sequential
 import tensorflow as tf
 from tqdm import tqdm
 
+
 class Process2:
     def __init__(self, imgpath) -> None:
         # load image
@@ -103,7 +104,7 @@ class Process2:
         # remove background
         #self.bkg = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
         self.bkg = self.circle_lowpass(3,1)
-        self.show_img(self.bkg,norm=False)
+        axesimg = plt.imshow(self.bkg)
         analimg = self.img - self.bkg
         analimg = np.where(analimg < 0, 0, analimg)
         # mask
@@ -151,7 +152,7 @@ class Process2:
         print(i)
 
         # sersic profile and return
-        if sersic == True:
+        if sersic:
             nvalues = []
             galaxies_x = []
             galaxies_y = []
@@ -303,7 +304,7 @@ class Process2:
                 stretch=visualization.LinearStretch()
                 )
             fig, ax = plt.subplots(ncols=2,figsize=(10,8))
-            ax[0].imshow(img,cmap='inferno', norm=colors.LogNorm())
+            ax[0].imshow(img,cmap='inferno')#, norm=colors.LogNorm())
             ax[1].imshow(img,cmap='Greys',norm=normalise)
     
         else:
@@ -329,6 +330,12 @@ class Process2:
             axin = ax.inset_axes([0.65,0.65,0.3,0.3])
             axin.bar([0,1], [sp,gp], tick_label = ['Star', 'Galaxy'], color = ['r','b'])
             axin.patch.set_alpha(0)
+            axin.spines['top'].set_color('white')
+            axin.spines['bottom'].set_color('white')
+            axin.spines['left'].set_color('white')
+            axin.spines['right'].set_color('white')
+            axin.tick_params(axis = 'x', color = 'white', labelcolor = 'white')
+            axin.tick_params(axis = 'y', color = 'white', labelcolor = 'white')
             fig.tight_layout()
             plt.show()
 
@@ -347,12 +354,12 @@ if __name__ == '__main__':
     # plot
     plt.figure(figsize=(6,8))
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
-    plt.imshow(image.img,cmap='Greys',norm=normalise)
+    plt.imshow(image.img,cmap='Greys', norm = normalise)
     # plt.imshow(image.original,cmap='inferno',norm=colors.LogNorm())
     plt.plot(x,y,'.',color='red',alpha=0.5)
     for i in range(len(image.apertures)):
         image.apertures[i].plot(color='blue', lw=1.5, alpha=0.5)
-    plt.colorbar()
+    #plt.colorbar()
     plt.show()
 
     # cumulative number count plot
