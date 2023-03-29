@@ -103,7 +103,7 @@ class Process2:
         # remove background
         #self.bkg = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
         self.bkg = self.circle_lowpass(3,1)
-        self.show_img(self.bkg)
+        self.show_img(self.bkg,norm=False)
         analimg = self.img - self.bkg
         analimg = np.where(analimg < 0, 0, analimg)
         # mask
@@ -235,7 +235,7 @@ class Process2:
             lim = np.count_nonzero(np.where(m < 17.5, True, False))
             fit,cov = np.polyfit(m[:lim],logN[:lim],1,w=1/logNerr[:lim],cov=True)
             plogN = np.poly1d(fit)
-            print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
+            # print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
             # plt.figure()
             # plt.xlabel(r'$m$')
             # plt.ylabel(r'$log(N(m))$')
@@ -307,14 +307,12 @@ class Process2:
             ax[1].imshow(img,cmap='Greys',norm=normalise)
     
         else:
-            fig, ax = plt.subplots(ncols=1,figsize=(5,5))
+            fig, ax = plt.subplots(ncols=1,figsize=(6,8))
             ax.imshow(img,cmap='inferno')          
     
         if plotnow: plt.show()
 
         return fig, ax
-
-
 
     def showpredict(self, cat):
         x = np.linspace(0,self.img.shape[1],self.img.shape[1])
@@ -347,7 +345,7 @@ if __name__ == '__main__':
     y = cat['y-centroid']
     x = cat['x-centroid']
     # plot
-    plt.figure(figsize=(10,8))
+    plt.figure(figsize=(6,8))
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
     plt.imshow(image.img,cmap='Greys',norm=normalise)
     # plt.imshow(image.original,cmap='inferno',norm=colors.LogNorm())
@@ -358,51 +356,57 @@ if __name__ == '__main__':
     plt.show()
 
     # cumulative number count plot
-
-
-    model = models.load_model('TrainedModel2.h5')
-
-    probability_model = Sequential([model, tf.keras.layers.Softmax()])
-    
+    model = models.load_model('TrainedModel.h5')
+    probability_model = Sequential([model, tf.keras.layers.Softmax()])   
     #cat = image.identify_objects(catalogue = True)
-
     winds, predicts = image.gal_ml(probability_model,cat)
-
     cat['galpreds'] = predicts[:,1]
     cat['starpreds'] = predicts[:,0]
-
     #catalouge w only galaxies as predicted by nn
     star_dat = cat.query('starpreds > 0.90')
     galaxy_dat = cat.query('galpreds > 0.90')
     unident = cat.query('galpreds < 0.90 & starpreds < 0.90')
-
     #image.showpredict(star_dat)
+    print('Percentage of Objects are Galaxies = %.3e ' %(len(galaxy_dat)/len(cat)*100))
 
-    print(len(unident))
-
-    fig, ax = plt.subplots(ncols=1,figsize=(10,8))
-
+    fig, ax = plt.subplots(ncols=1,figsize=(6,8))
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
-    ax.imshow(image.img,cmap='Greys',norm=normalise)
+    im=ax.imshow(image.img,cmap='Greys',norm=normalise)
     s1 = ax.scatter(star_dat['x-centroid'],star_dat['y-centroid'], s=4, color = 'r')
     s2 = ax.scatter(unident['x-centroid'],unident['y-centroid'], s=4, color = 'y')
     s3 = ax.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=4)
-
     fig.legend((s1,s2,s3), ('Star', 'Unidentified', 'Galaxy'))
+    fig.colorbar(im)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     plt.show()
 
-    
-    
     m,N=image.number_count(plotting=False, cat = cat)
-    mg, Ng = image.number_count(plotting = True,cat = galaxy_dat)
+    mg, Ng = image.number_count(plotting = False,cat = galaxy_dat)
+    lim = np.count_nonzero(np.where(m < 17.5, True, False))
+    lim2 = np.count_nonzero(np.where(mg < 17.5, True, False))
+    logN = np.log10(N)
+    logNerr = (1/N * N**0.5)*logN
+    logN2 = np.log10(Ng)
+    logNerr2 = (1/Ng * Ng**0.5)*logN2
+    fit,cov = np.polyfit(m[:lim],logN[:lim],1,w=1/logNerr[:lim],cov=True)
+    fit2,cov2 = np.polyfit(mg[:lim2],logN2[:lim2],1,w=1/logNerr2[:lim2],cov=True)
+    plogN = np.poly1d(fit)
+    plogN2 = np.poly1d(fit2)
+    print('Gradient = %.3e +/- %.3e' %(fit[0],np.sqrt(cov[0][0])))
+    print('Gradient = %.3e +/- %.3e' %(fit2[0],np.sqrt(cov2[0][0])))
+
 
     # m1,N1=image.number_count(plotting=False,ser=True)
     plt.figure()
-    plt.scatter(m,np.log(N),color='blue',label='All objects')
-    plt.scatter(mg,np.log(Ng),color='blueviolet',label='Galaxies')
+    plt.xlabel(r'$m$')
+    plt.ylabel(r'$log(N(m))$')
+    plt.errorbar(m,logN,yerr=logNerr,fmt='.',color='blue',label='All objects',capsize=2,elinewidth=1,markersize=4)
+    plt.plot(m,plogN(m),'-',color='royalblue',label='All Object Fit')
+    plt.errorbar(mg,logN2,yerr=logNerr2,fmt='.',color='blueviolet',label='Galaxies',capsize=2,elinewidth=1,markersize=4,alpha=0.75)
+    plt.plot(mg,plogN2(mg),'-',color='violet',alpha=1, label='Galaxies Fit')
     plt.legend()
+    plt.ylim(0,4)
     plt.show()
 
     # print('Galaxy = ' +str(N1[-1]))
