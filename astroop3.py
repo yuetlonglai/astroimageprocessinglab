@@ -17,7 +17,7 @@ from glob import glob
 import pickle
 from scipy.interpolate import RegularGridInterpolator
 import matplotlib.cm as cm
-
+import matplotlib.gridspec as gs
 
 class Process_fake(Process2):
     def __init__(
@@ -43,10 +43,12 @@ class Process_fake(Process2):
 
 
         pic = ninter((X,Y))
+        cls.noise1 = pic
         wnoise = np.random.normal(noise_params['whiteshift'],noise_params['whiterange'],(size[0],size[1]))
-        pic += wnoise
-        
-        cls.img = pic
+        pic1 = pic + wnoise
+        cls.noise2 = pic1
+
+        cls.img = pic1.copy()
         print(cls.img)
         print(cls.img.shape)
         cls.show_img()
@@ -269,7 +271,9 @@ class Process_frompkl(Process_fake):
             loaded = pickle.load(f)
         cls.zpinst = 25.3
         cls.zpinst_error = 0.02
-        cls. img = loaded.img
+        cls.noise1 = loaded.noise1
+        cls.noise2 = loaded.noise2
+        cls.img = loaded.img
         cls.galprops =  loaded.galprops
         cls.starprops = loaded.starprops
         cls.average_background = loaded.average_background
@@ -302,20 +306,40 @@ if __name__ == '__main__':
     # testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [20000,20], 'staramp': [20000,20], 'galwidth': [10,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,4]}
     # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
-    # test.save_pkl('TrainingData2')
+    # test.save_pkl('ReportImg')
 
     # test.show_img(objscatter = True)
 
-    test = Process_frompkl('TrainingData2')
-    test.img += np.random.normal(3450,100,(test.img.shape[0],test.img.shape[1]))
-    fig, ax = test.show_img()
-    handle, = ax[0].get_images()
-    ax[0].set_xticks([])
-    ax[0].set_yticks([])
-    ax[1].set_yticks([])
-    ax[1].set_xticks([])
-    fig.colorbar(handle, ax = ax[0],location = 'left')
+    test = Process_frompkl('ReportImg')
+    #test.img += np.random.normal(3450,100,(test.img.shape[0],test.img.shape[1]))
 
+    fig, ax = plt.subplots(1,2)
+    fig.set_size_inches(10,4)
+    print(ax)
+    cmap = 'inferno'
+    normalise = visualization.ImageNormalize(test.img,interval=visualization.AsymmetricPercentileInterval(0,85),stretch=visualization.LinearStretch())  
+
+    for i,ai in enumerate(ax):
+        ax[i].tick_params(labelbottom = False, labelleft = False)
+
+    ax[0].imshow(test.noise1, cmap = cmap)
+    ax[0].set_xlabel('(a)')
+    ax[1].imshow(test.noise2, cmap = cmap)
+    ax[1].set_xlabel('(b)')
+    fig.tight_layout()
+
+    fig, ax = plt.subplots(1,2)
+    fig.set_size_inches(10,4)
+    for i,ai in enumerate(ax):
+        ax[i].tick_params(labelbottom = False, labelleft = False)
+
+    im = ax[0].imshow(test.img, cmap = cmap)
+    ax[1].imshow(test.img, cmap = 'Greys', norm = normalise)
+
+    ax[0].set_xlabel('(c)')
+    ax[1].set_xlabel('(d)')
+    plt.colorbar(im, ax = ax[0], location = 'left', shrink = 0.9)
+    fig.tight_layout()
     #data = test.createdataset()
     plt.show()
     tcat = test.test_ident()
@@ -324,7 +348,6 @@ if __name__ == '__main__':
     y = tcat['y-centroid']
 
     plt.figure(figsize=(10,8))
-    normalise = visualization.ImageNormalize(test.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
     plt.imshow(test.img,cmap='Greys',norm=normalise)
     # plt.imshow(image.original,cmap='inferno',norm=colors.LogNorm())
     plt.plot(x,y,'.',color='red',alpha=0.5)
