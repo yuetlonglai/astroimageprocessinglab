@@ -116,7 +116,7 @@ class Process2:
         print('sources1', len(sources))
         sourcesx = sources['xcentroid']
         sourcesy = sources['ycentroid']
-        sources_radius = (sources['peak'])**(1/2.5) # approximate the relationship between brightness and its radius => works
+        sources_radius = 6*np.log10(sources['peak']) - 6 # approximate the relationship between brightness and its radius => works
         sources_radius = np.where(sources_radius > 2, sources_radius,2)
 
         positions = np.column_stack([sourcesx,sourcesy])
@@ -283,7 +283,7 @@ class Process2:
         for i, (coord, peak) in enumerate(zip(coordlist, cat['peaks'])):
             width = 5 * np.log(peak) - 5
             #print(width)
-            wind = self.objwindow(x,y,coord, width, 2, [64,64])
+            wind = self.objwindow(x,y,coord, width, 3, [64,64])
             winds.append(wind)
         
         winds = np.array(winds)
@@ -360,7 +360,7 @@ if __name__ == '__main__':
     # cumulative number count plot
 
 
-    model = models.load_model('TrainedModel.h5')
+    model = models.load_model('TrainedModel2.h5')
 
     probability_model = Sequential([model, tf.keras.layers.Softmax()])
     
@@ -372,9 +372,9 @@ if __name__ == '__main__':
     cat['starpreds'] = predicts[:,0]
 
     #catalouge w only galaxies as predicted by nn
-    star_dat = cat.query('starpreds > 0.95')
-    galaxy_dat = cat.query('galpreds > 0.95')
-    unident = cat.query('galpreds < 0.95 & starpreds < 0.95')
+    star_dat = cat.query('starpreds > 0.90')
+    galaxy_dat = cat.query('galpreds > 0.90')
+    unident = cat.query('galpreds < 0.90 & starpreds < 0.90')
 
     #image.showpredict(star_dat)
 

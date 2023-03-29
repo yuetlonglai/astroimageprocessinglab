@@ -62,11 +62,11 @@ class Process_fake(Process2):
         xpoints = np.random.randint(len(self.img[0]),size = num)
         ypoints = np.random.randint(len(self.img[:,0]),size = num)
 
-        #xrs = np.random.randint(min(widthr),max(widthr),size = num)
+        xrs = np.random.randint(min(widthr),max(widthr),size = num)
         
         skews = abs(np.random.rand(num))*abs(skew[0]-skew[1]) + min(skew)
         amps = np.random.randint(min(ampr),max(ampr), size = num)
-        xrs = 5*np.log(amps) -5
+        #xrs = 5*np.log(amps) -5
 
         x = np.arange(0,len(self.img[0]),1, dtype=int)
         y = np.arange(0,len(self.img[1]),1, dtype=int)
@@ -165,20 +165,21 @@ class Process_fake(Process2):
 
 
     def createdataset(self, wdim = [64,64]):
-        x = np.linspace(0,self.img.shape[0],self.img.shape[0])
-        y = np.linspace(0,self.img.shape[1],self.img.shape[1])
+        x = np.linspace(0,self.img.shape[1],self.img.shape[1])
+        y = np.linspace(0,self.img.shape[0],self.img.shape[0])
 
         
         gwind = []
         for i, (coord, sig) in enumerate(zip(self.galprops['coords'],self.galprops['widths'])) :
-            winsamp = self.objwindow(x,y,coord, np.amax(sig),2,wdim)
+            # rsize = (np.random.random(1)*8 + 3)
+            winsamp = self.objwindow(x,y,coord[::-1], np.amax(sig),3,wdim)
             winsamp = (winsamp - np.amin(winsamp)) / np.amax(winsamp - np.amin(winsamp))
             gwind.append(winsamp)
         
         swind = []
         for i, (coord, sig) in enumerate(zip(self.starprops['coords'],self.starprops['widths'])):
-            rsize = (np.random.random(1)*8 + 3)
-            winsamp = self.objwindow(x,y,coord, np.amax(sig),rsize,wdim)
+            # rsize = (np.random.random(1)*8 + 3)
+            winsamp = self.objwindow(x,y,coord[::-1], np.amax(sig),3,wdim)
             winsamp = (winsamp - np.amin(winsamp)) / np.amax(winsamp - np.amin(winsamp))
             swind.append(winsamp)
         
@@ -257,7 +258,20 @@ class Process_fake(Process2):
         plt.show()
         return cat
     
+class Process_frompkl(Process_fake):
 
+
+    def __init__(cls, pkl):
+        with open('{}.pkl'.format(pkl), 'rb') as f:
+            loaded = pickle.load(f)
+        cls.zpinst = 25.3
+        cls.zpinst_error = 0.02
+        cls. img = loaded.img
+        cls.galprops =  loaded.galprops
+        cls.starprops = loaded.starprops
+        cls.average_background = loaded.average_background
+        cls.background_sigma = loaded.background_sigma
+        
 
 
 
@@ -282,15 +296,14 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    # testobjs = {'numgal': 1, 'numstar': 3000, 'galamp': [20,19], 'staramp': [10000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [20,2]}
-    # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
+    testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [5000,20], 'staramp': [5000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [20,2]}
+    test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
 
-    # test.save_pkl('TestData2')
+    test.save_pkl('TrainingData2')
 
-    # test.show_img(objscatter = True)
+    test.show_img(objscatter = True)
 
-    with open('TestData2.pkl', 'rb') as f:
-        test = pickle.load(f)
+
 
     test.show_img()
 
