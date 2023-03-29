@@ -398,7 +398,8 @@ if __name__ == '__main__':
 
 
     # m1,N1=image.number_count(plotting=False,ser=True)
-    plt.figure()
+    plt.figure(figsize=(7,7))
+    plt.grid()
     plt.xlabel(r'$m$')
     plt.ylabel(r'$log(N(m))$')
     plt.errorbar(m,logN,yerr=logNerr,fmt='.',color='blue',label='All objects',capsize=2,elinewidth=1,markersize=4)
