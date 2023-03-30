@@ -313,33 +313,32 @@ if __name__ == '__main__':
     test = Process_frompkl('ReportImg')
     #test.img += np.random.normal(3450,100,(test.img.shape[0],test.img.shape[1]))
 
-    fig, ax = plt.subplots(1,2)
-    fig.set_size_inches(10,4)
+    fig, ax = plt.subplots(2,2)
     print(ax)
     cmap = 'inferno'
     normalise = visualization.ImageNormalize(test.img,interval=visualization.AsymmetricPercentileInterval(0,85),stretch=visualization.LinearStretch())  
 
     for i,ai in enumerate(ax):
-        ax[i].tick_params(labelbottom = False, labelleft = False)
+        for j,aj in enumerate(ai):
+            ax[i,j].tick_params(labelbottom = False, labelleft = False)
 
-    ax[0].imshow(test.noise1, cmap = cmap)
-    ax[0].set_xlabel('(a)')
-    ax[1].imshow(test.noise2, cmap = cmap)
-    ax[1].set_xlabel('(b)')
-    fig.tight_layout()
+    im = ax[0,0].imshow(test.noise1, cmap = cmap)
+    ax[0,0].set_xlabel('(a)')
 
-    fig, ax = plt.subplots(1,2)
-    fig.set_size_inches(10,4)
-    for i,ai in enumerate(ax):
-        ax[i].tick_params(labelbottom = False, labelleft = False)
+    ax[0,1].imshow(test.noise2, cmap = cmap)
+    ax[0,1].set_xlabel('(b)')
 
-    im = ax[0].imshow(test.img, cmap = cmap)
-    ax[1].imshow(test.img, cmap = 'Greys', norm = normalise)
+    cbar1 = ax[0,0].inset_axes([-0.2,0, 0.1, 1])
+    ax[1,0].set_xlabel('(c)')
+    fig.colorbar(im, cax = cbar1, location = 'left')
 
-    ax[0].set_xlabel('(c)')
-    ax[1].set_xlabel('(d)')
-    plt.colorbar(im, ax = ax[0], location = 'left', shrink = 0.9)
-    fig.tight_layout()
+    im = ax[1,0].imshow(test.img, cmap = 'gnuplot2')#, norm = colors.LogNorm())
+    ax[1,1].imshow(test.img, cmap = 'Greys', norm = normalise)
+    ax[1,1].set_xlabel('(d)')
+
+    cbar2 = ax[1,0].inset_axes([-0.2,0, 0.1, 1])
+    fig.colorbar(im, cax = cbar2, location = 'left')
+    #fig.tight_layout()
     #data = test.createdataset()
     plt.show()
     tcat = test.test_ident()
