@@ -203,6 +203,7 @@ class Process2:
             catalogue_table['y-centroid'] = sourcesy
             catalogue_table['peaks'] = sources['peak']
             catalogue_table['radius'] = sources_radius
+            catalogue_table['apertures'] = self.apertures
             #catalogue_table = catalogue_table.query('peaks > 0')
             if aperture_vary == False:
                 catalogue_table['magnitude_0'] = self.zpinst - 2.5*np.log10(phot_table['aperture_sum_0'])
@@ -374,18 +375,23 @@ if __name__ == '__main__':
     galaxy_dat = cat.query('galpreds > 0.90')
     unident = cat.query('galpreds < 0.90 & starpreds < 0.90')
     #image.showpredict(star_dat)
-    print('Percentage of Objects are Galaxies = %.3e ' %(len(galaxy_dat)/len(cat)*100))
+    print('Percentage of Objects are Galaxies = ' +str(len(galaxy_dat)/len(cat)*100)+'%')
 
     fig, ax = plt.subplots(ncols=1,figsize=(6,8))
     normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
-    im=ax.imshow(image.img,cmap='Greys',norm=normalise)
+    ax.imshow(image.img,cmap='Greys',norm=normalise)
     s1 = ax.scatter(star_dat['x-centroid'],star_dat['y-centroid'], s=4, color = 'r')
+    for i in star_dat['apertures']:
+        i.plot(color='red', lw=1.5, alpha=0.5)
     s2 = ax.scatter(unident['x-centroid'],unident['y-centroid'], s=4, color = 'y')
+    for j in unident['apertures']:
+        j.plot(color='yellow', lw=1.5, alpha=0.5)
     s3 = ax.scatter(galaxy_dat['x-centroid'],galaxy_dat['y-centroid'], color = 'b', s=4)
+    for k in galaxy_dat['apertures']:
+        k.plot(color='blue', lw=1.5, alpha=0.5)
     fig.legend((s1,s2,s3), ('Star', 'Unidentified', 'Galaxy'))
-    fig.colorbar(im)
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
+    # ax.set_xticklabels([])
+    # ax.set_yticklabels([])
     plt.show()
 
     m,N=image.number_count(plotting=False, cat = cat)
