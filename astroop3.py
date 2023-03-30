@@ -226,13 +226,13 @@ class Process_fake(Process2):
         magnitude = self.zpinst - 2.5*np.log10(flux)
         print('yesna ', len(cat))
         cat = cat.dropna()
-        imgflux = 10**((self.zpinst - cat['magnitude_'])/2.5)
+        #imgflux = 10**((self.zpinst - cat['magnitude_'])/2.5)
         print('Actual Mean: {}, Actual Std: {}'.format(magnitude.mean(),magnitude.std()))
         fig, ax = plt.subplots(3,1)
         
-        magbinnum = int((max(magnitude) - min(magnitude)))
+        magbinnum = int((max(magnitude) - min(magnitude))/0.2)
         n, bins, h1 = ax[0].hist(magnitude, bins = magbinnum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(magnitude.mean(), magnitude.std()))
-        datmagbinnum = int((max(cat['magnitude_']) - min(cat['magnitude_'])))
+        datmagbinnum = int((max(cat['magnitude_']) - min(cat['magnitude_']))/0.2)
         n, bins, h2 = ax[0].hist(cat['magnitude_'], bins = datmagbinnum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(cat['magnitude_'].mean(), cat['magnitude_'].std()))
         ax[0].legend()
         print('Detected Mean: {}, Detected Std: {}'.format(cat['magnitude_'].mean(),cat['magnitude_'].std()))
@@ -250,8 +250,8 @@ class Process_fake(Process2):
         ax[1].grid()
         ax[1].set_ylabel('Frequency')
 
-        fluxbinnum = int((max(flux) - min(flux))/250000)
-        datfluxbinum = int((max(cat['flux']) - min(cat['flux']))/250000)
+        fluxbinnum = int((max(flux) - min(flux))/100000)
+        datfluxbinum = int((max(cat['flux']) - min(cat['flux']))/100000)
         ax[2].hist(flux, bins = fluxbinnum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(flux.mean(), flux.std()))
         ax[2].hist(cat['flux'], bins = datfluxbinum, alpha = 0.5, label = '$\mu$: {:.3g}, $\sigma$ {:.3g}'.format(cat['flux'].mean(), cat['flux'].std()))
         ax[2].set_xlabel('Flux')
@@ -303,14 +303,14 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    # testobjs = {'numgal': 2000, 'numstar': 1000, 'galamp': [20000,20], 'staramp': [20000,20], 'galwidth': [10,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,4]}
-    # test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 10, 'whiteshift': 5}, objparams=testobjs)
+    testobjs = {'numgal': 1, 'numstar': 2000, 'galamp': [25,20], 'staramp': [10000,20], 'galwidth': [10,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,4]}
+    test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 36, 'whiteshift': 5}, objparams=testobjs)
 
-    # test.save_pkl('ReportImg')
+    test.save_pkl('TestData3')
 
-    # test.show_img(objscatter = True)
+    test.show_img(objscatter = True)
 
-    test = Process_frompkl('ReportImg')
+    test = Process_frompkl('TestData3')
     #test.img += np.random.normal(3450,100,(test.img.shape[0],test.img.shape[1]))
 
     fig, ax = plt.subplots(2,2)
