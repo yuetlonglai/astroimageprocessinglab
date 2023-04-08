@@ -102,7 +102,7 @@ class Process2:
      
     def identify_objects(self,catalogue=False,aperture_vary=True,sersic=False, bord_size = 150): # use photoutils aperture, photometry, background, detection
         # remove background
-        #self.bkg = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
+        self.bkg_est = background.Background2D(self.img,(200,200),filter_size=(3,3),sigma_clip=stats.SigmaClip(sigma=3.0),bkg_estimator=background.MedianBackground())
         self.bkg = self.circle_lowpass(3,1)
         axesimg = plt.imshow(self.bkg)
         analimg = self.img - self.bkg
@@ -361,6 +361,23 @@ if __name__ == '__main__':
     for i in range(len(image.apertures)):
         image.apertures[i].plot(color='blue', lw=1.5, alpha=0.5)
     #plt.colorbar()
+    plt.show()
+    print('Number of objects = ' +str(len(cat)))
+
+    # backgrounds
+    plt.figure(figsize=(10,6))
+    plt.subplot(1,2,1)
+    plt.imshow(image.bkg,cmap='inferno')
+    plt.subplot(1,2,2)
+    plt.imshow(image.bkg_est.background,cmap='inferno',interpolation='nearest')
+    plt.colorbar()
+    plt.show()
+
+    # original plot
+    plt.figure(figsize=(6,8))
+    normalise = visualization.ImageNormalize(image.img,interval=visualization.AsymmetricPercentileInterval(5,95),stretch=visualization.LinearStretch())
+    plt.imshow(image.original,cmap='Greys', norm = normalise)
+    plt.colorbar()
     plt.show()
 
     # cumulative number count plot
