@@ -9,7 +9,7 @@ from astroop3 import Process_fake
 import numpy as np
 
 
-test = Process_frompkl('TrainingData2')
+test = Process_frompkl('TrainingData3')
 
 labeldata = test.createdataset()
 print(labeldata['data'].shape) 
@@ -36,14 +36,24 @@ model.compile(optimizer='adam',
 history = model.fit(train_images, train_labels, epochs=10, 
                     validation_data=(test_images, test_labels))
 
-plt.plot(history.history['accuracy'], label='accuracy')
-plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
+plt.plot(history.history['accuracy'], label='Train data accuracy')
+plt.plot(history.history['val_accuracy'], label = 'Test data accuracy')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.ylim([0.5, 1])
 plt.legend(loc='lower right')
 plt.grid()
 plt.show()
+
+plt.scatter(np.arange(0,10, 1), history.history['accuracy'], label='Train data accuracy')
+plt.scatter(np.arange(0,10, 1),history.history['val_accuracy'], label = 'Test data accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.ylim([0.5, 1])
+plt.legend(loc='lower right')
+plt.grid()
+plt.show()
+
 
 #model = models.load_model('TrainedModel2.h5')
 probability_model = models.Sequential([model, tf.keras.layers.Softmax()])
@@ -54,4 +64,4 @@ predicts = np.where(predicts[:,1] > 0.5, 1, 0)
 print(classification_report(test_labels, predicts))
 test_loss, test_acc = model.evaluate(test_images,  test_labels, verbose=2)
 
-model.save('TrainedModel2.h5')
+model.save('TrainedModel3.h5')

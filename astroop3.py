@@ -303,14 +303,14 @@ if __name__ == '__main__':
     # 2) find the local background and use that to find flux instead of global background
     # 3) errorbars
 
-    testobjs = {'numgal': 1, 'numstar': 2000, 'galamp': [25,20], 'staramp': [10000,20], 'galwidth': [10,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,4]}
+    testobjs = {'numgal': 3000, 'numstar': 1000, 'galamp': [15000,20], 'staramp': [10000,20], 'galwidth': [20,2], 'galskew': [1,2], 'gnrange': [0.5,4] , 'starwidth': [10,4]}
     test = Process_fake(size = [3000,3000], noise_params={'octaves': 2, 'seed': 55, 'scale': 17, 'shift': 3418.8155053212563, 'whiterange': 36, 'whiteshift': 5}, objparams=testobjs)
 
-    test.save_pkl('TestData3')
+    test.save_pkl('TrainingData3')
 
     test.show_img(objscatter = True)
 
-    test = Process_frompkl('TestData3')
+    #test = Process_frompkl('Trainingdata3')
     #test.img += np.random.normal(3450,100,(test.img.shape[0],test.img.shape[1]))
 
     fig, ax = plt.subplots(2,2)

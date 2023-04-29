@@ -9,6 +9,8 @@ from astropy.visualization import astropy_mpl_style, ImageNormalize, HistEqStret
 # loading the data
 hdul = fits.open('A1_mosaic.fits')
 
+print(hdul[0].header)
+
 # the image
 imag = hdul[0].data
 # print(imag)
